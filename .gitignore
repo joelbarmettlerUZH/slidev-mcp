@@ -1,0 +1,31 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment files
+.env
+.env.production
+
+# Vendor (created by make bootstrap)
+vendor/
+
+# Data directories
+/data/
+
+# TLS certificates (mkcert)
+certs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+docs/node_modules

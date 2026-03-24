@@ -1,0 +1,13 @@
+# Base: shared volumes and networks only.
+# Not used standalone — always combined with dev/local/prod.
+
+volumes:
+  slides-data:
+  build-inbox:
+  pg-data:
+
+networks:
+  web:
+  internal:
+  isolated:
+    internal: true

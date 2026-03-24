@@ -1,0 +1,45 @@
+# Stage 1: Clone Slidev docs at pinned ref
+FROM alpine/git:latest AS vendor
+ARG SLIDEV_REF=v52.14.1
+RUN git clone --depth 1 --branch ${SLIDEV_REF} --filter=blob:none --sparse \
+    https://github.com/slidevjs/slidev.git /slidev && \
+    cd /slidev && git sparse-checkout set docs/
+
+# Stage 2: Python runtime
+FROM python:3.13-slim
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install docker CLI (needed for docker exec into builder container)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install dependencies first (cache layer)
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+# Copy vendored docs from stage 1
+COPY --from=vendor /slidev/docs/ /app/vendor/slidev-docs/docs/
+
+# Copy source
+COPY src/ src/
+
+# Create data directories
+RUN mkdir -p /data/slides /data/builds
+
+# Create non-root user
+RUN useradd --create-home --uid 1000 mcp
+RUN chown -R mcp:mcp /app /data
+USER mcp
+
+CMD ["uv", "run", "--no-dev", "python", "-m", "slidev_mcp.server"]

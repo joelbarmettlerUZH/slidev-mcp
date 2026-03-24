@@ -1,0 +1,48 @@
+[project]
+name = "slidev-mcp"
+version = "0.1.0"
+description = "MCP server for generating, rendering, and hosting Slidev presentations"
+readme = "README.md"
+authors = [
+    { name = "Joel Barmettler", email = "joel.barmettler@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2",
+    "sqlalchemy[asyncio]>=2",
+    "asyncpg>=0.30",
+    "pydantic-settings>=2",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "aiosqlite>=0.20",
+    "ruff>=0.9",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["slidev_mcp"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: requires live services (PostgreSQL, builder container)",
+]
+addopts = "-m 'not integration'"

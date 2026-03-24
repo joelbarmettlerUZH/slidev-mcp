@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "slidev-mcp": {
+      "type": "http",
+      "url": "https://127.0.0.1.nip.io/mcp"
+    }
+  }
+}

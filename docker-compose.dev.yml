@@ -1,0 +1,52 @@
+# Dev: infrastructure only (no application code).
+# The MCP server runs on the host via `make serve`.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  builder:
+    build:
+      context: ./builder
+      dockerfile: Dockerfile
+    container_name: builder
+    networks: [isolated]
+    volumes:
+      - build-inbox:/data/builds
+      - slides-data:/data/slides
+    user: "1000:1000"
+    mem_limit: 2g
+    cpus: 2.0
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - "no-new-privileges:true"
+    command: ["sleep", "infinity"]
+    logging: *default-logging
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    networks: [internal]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: slidev
+      POSTGRES_USER: slidev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-slidev}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slidev"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+    logging: *default-logging
+    restart: unless-stopped
