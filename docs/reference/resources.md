@@ -23,9 +23,8 @@ You don't need to interact with resources directly — your assistant uses them 
 
 | Resource URI | Content |
 |---|---|
-| `slidev://themes/gallery` | Community themes gallery from the Slidev ecosystem |
-| `slidev://themes/use` | How to configure and use themes |
 | `slidev://themes/installed` | Which themes are pre-installed and available on this server |
+| `slidev://themes/{name}` | Per-theme README with layouts, components, and usage examples (e.g. `slidev://themes/swiss-ai-hub`) |
 
 ### Examples
 

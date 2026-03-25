@@ -1,24 +1,35 @@
 FROM oven/bun:latest
 
-WORKDIR /app
-
-# Copy package files and config
-COPY bunfig.toml ./
-COPY package.json ./
-
-# Install dependencies (lifecycle scripts disabled via bunfig.toml)
-RUN bun install --frozen-lockfile
-
-# Copy template and build script
-COPY template/ ./template/
-COPY build-job.ts ./
-
-# Create non-root builder user (GID 1000 may already exist in base image)
+# Create non-root user FIRST — avoids expensive chown of node_modules later
 RUN getent group 1000 || groupadd -g 1000 builder; \
     id -u 1000 2>/dev/null || useradd -u 1000 -g 1000 -m builder; \
-    mkdir -p /data/builds /data/slides && \
-    chown -R 1000:1000 /app /data/builds /data/slides
+    mkdir -p /app /data/builds /data/slides && \
+    chown -R 1000:1000 /app /data
 
+WORKDIR /app
 USER 1000
 
-CMD ["sleep", "infinity"]
+# Copy config and scripts (owned by builder user)
+COPY --chown=1000:1000 bunfig.toml themes.json ./
+COPY --chown=1000:1000 scripts/ ./scripts/
+
+# Generate per-theme project directories
+RUN bun run scripts/init-themes.ts
+
+# Pre-warm bun's global cache by installing the first theme (downloads @slidev/cli etc.)
+RUN cd themes/default && bun install
+
+# Install remaining themes in parallel — cache is pre-warmed so these are fast
+RUN for dir in themes/*/; do \
+      [ "$dir" = "themes/default/" ] && continue; \
+      (cd /app/$dir && bun install) & \
+    done; wait
+
+# Copy build scripts and server
+COPY --chown=1000:1000 build-job.ts server.ts ./
+
+# Validate all themes — remove any that fail to build
+RUN bun run scripts/validate-themes.ts --remove-broken
+
+EXPOSE 3000
+CMD ["bun", "run", "server.ts"]

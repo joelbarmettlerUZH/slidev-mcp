@@ -7,6 +7,7 @@ install:
 
 bootstrap:
 	scripts/bootstrap.sh
+	python3 scripts/fetch-theme-readmes.py
 
 lint:
 	uv run ruff check .
@@ -27,9 +28,9 @@ test-all:
 	uv run pytest -m ""
 
 test-integration:
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	docker compose -f docker-compose.dev.yml up -d
 	uv run pytest -m integration
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 pr-ready: lint-fix format test
 
@@ -41,22 +42,22 @@ docker-build:
 	docker build -t slidev-mcp-builder -f builder/Dockerfile builder/
 
 docker-dev-up:
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	docker compose -f docker-compose.dev.yml up -d
 
 docker-dev-down:
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 docker-local-up:
-	docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+	docker compose -f docker-compose.local.yml up -d
 
 docker-local-down:
-	docker compose -f docker-compose.yml -f docker-compose.local.yml down
+	docker compose -f docker-compose.local.yml down
 
 docker-prod-up:
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose.prod.yml up -d
 
 docker-prod-down:
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+	docker compose -f docker-compose.prod.yml down
 
 docs-install:
 	cd docs && bun install

@@ -1098,6 +1098,7 @@ source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "fastmcp" },
+    { name = "httpx" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
@@ -1114,6 +1115,7 @@ dev = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "fastmcp", specifier = ">=2" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-settings", specifier = ">=2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2" },
 ]

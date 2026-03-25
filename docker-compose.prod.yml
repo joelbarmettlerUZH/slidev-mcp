@@ -1,5 +1,5 @@
 # Production stack with Let's Encrypt TLS via Traefik.
-# Usage: DOMAIN=slides.example.com ACME_EMAIL=you@example.com POSTGRES_PASSWORD=secret docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Usage: DOMAIN=slides.example.com ACME_EMAIL=you@example.com POSTGRES_PASSWORD=secret docker compose -f docker-compose.prod.yml up -d
 
 x-logging: &default-logging
   driver: json-file
@@ -11,23 +11,18 @@ services:
   mcp-server:
     image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettler/slidev-mcp}/slidev-mcp-server:${IMAGE_TAG:-latest}
     networks: [web, internal, isolated]
-    volumes:
-      - slides-data:/data/slides
-      - build-inbox:/data/builds
     environment:
       DOMAIN: ${DOMAIN}
       DATABASE_URL: postgresql+asyncpg://slidev:${POSTGRES_PASSWORD}@postgres:5432/slidev
       SERVER_TRANSPORT: streamable-http
       SERVER_HOST: "0.0.0.0"
       SERVER_PORT: "8000"
-      BUILDER_CONTAINER_NAME: builder
-      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      BUILDER_HOST: builder
+      BUILDER_PORT: "3000"
     depends_on:
       postgres:
         condition: service_healthy
       builder:
-        condition: service_started
-      docker-socket-proxy:
         condition: service_started
     labels:
       - "traefik.enable=true"
@@ -52,17 +47,12 @@ services:
     container_name: builder
     networks: [isolated]
     volumes:
-      - build-inbox:/data/builds
       - slides-data:/data/slides
     user: "1000:1000"
     mem_limit: 2g
     cpus: 2.0
-    read_only: true
-    tmpfs:
-      - /tmp
     security_opt:
       - "no-new-privileges:true"
-    command: ["sleep", "infinity"]
     logging: *default-logging
     restart: unless-stopped
 
@@ -102,20 +92,6 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
-  docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
-    networks: [isolated]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      CONTAINERS: 1
-      EXEC: 1
-      POST: 1
-    mem_limit: 128m
-    cpus: 0.25
-    logging: *default-logging
-    restart: unless-stopped
-
   traefik:
     image: traefik:v3.6
     networks: [web]
@@ -142,4 +118,12 @@ services:
     restart: unless-stopped
 
 volumes:
+  slides-data:
+  pg-data:
   traefik-certs:
+
+networks:
+  web:
+  internal:
+  isolated:
+    internal: true

@@ -14,6 +14,7 @@ RESOURCE_MAP: dict[str, str] = {
     "slidev://builtin/components": "vendor:builtin/components.md",
     "slidev://builtin/layouts": "vendor:builtin/layouts.md",
     "slidev://themes/installed": "package:resources/installed_themes.md",
+    # Per-theme READMEs are loaded dynamically from resources/themes/*.md below
     "slidev://examples/minimal": "package:resources/examples/minimal.md",
     "slidev://examples/full_demo": "package:resources/examples/full_demo.md",
 }
@@ -41,5 +42,16 @@ def load_resources(vendor_dir: Path, package_dir: Path) -> dict[str, str]:
             logger.warning("Resource file missing for %s: %s", uri, path)
             continue
         resources[uri] = path.read_text(encoding="utf-8")
+
+    # Load per-theme READMEs as slidev://themes/{name} resources
+    themes_dir = package_dir / "resources" / "themes"
+    if themes_dir.exists():
+        for readme_path in sorted(themes_dir.glob("*.md")):
+            theme_name = readme_path.stem
+            uri = f"slidev://themes/{theme_name}"
+            resources[uri] = readme_path.read_text(encoding="utf-8")
+        logger.info("Loaded %d theme README resources", len(list(themes_dir.glob("*.md"))))
+    else:
+        logger.warning("Theme READMEs directory not found: %s", themes_dir)
 
     return resources

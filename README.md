@@ -26,7 +26,7 @@
 
 Connect your AI assistant to a Slidev MCP server, ask it to create a presentation, and get back a live URL — ready to share.
 
-- **30+ themes** to choose from
+- **13 curated themes** — all MIT-licensed, version-pinned, build-validated
 - **Shareable URLs** — every presentation gets a unique link
 - **Iterative updates** — modify slides within the same session, same URL
 - **Secure** — builds run in isolated containers with no network access
@@ -111,8 +111,8 @@ make pr-ready         # Lint + format + test
 Full documentation at **[slidev-mcp.org](https://slidev-mcp.org)**:
 
 - [Getting Started](https://slidev-mcp.org/guide/getting-started): Connect your AI assistant
-- [MCP Clients](https://slidev-mcp.org/clients/): Setup guides for 10 clients
-- [Themes](https://slidev-mcp.org/reference/themes): 30+ pre-installed themes
+- [MCP Clients](https://slidev-mcp.org/clients/): Setup guides for all supported clients
+- [Themes](https://slidev-mcp.org/reference/themes): 13 curated themes
 - [Tools Reference](https://slidev-mcp.org/reference/tools): Full API documentation
 - [Deployment](https://slidev-mcp.org/guide/deployment): Self-host on your own server
 

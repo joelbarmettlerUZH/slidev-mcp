@@ -1,8 +1,4 @@
-import asyncio
-import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
+import httpx
 import pytest
 
 from slidev_mcp.builder import MAX_MARKDOWN_SIZE, BuildOrchestrator, BuildResult
@@ -11,32 +7,17 @@ from slidev_mcp.errors import BuildFailed, BuildTimeout, MarkdownTooLarge, Theme
 
 
 @pytest.fixture
-def settings(tmp_path: Path) -> Settings:
+def settings() -> Settings:
     return Settings(
-        build_inbox_dir=str(tmp_path / "builds"),
-        slides_dir=str(tmp_path / "slides"),
-        builder_container_name="builder",
+        builder_host="localhost",
+        builder_port=9999,
         build_timeout=10,
     )
 
 
 @pytest.fixture
-def semaphore() -> asyncio.Semaphore:
-    return asyncio.Semaphore(3)
-
-
-@pytest.fixture
-def orchestrator(settings: Settings, semaphore: asyncio.Semaphore) -> BuildOrchestrator:
-    return BuildOrchestrator(settings, semaphore)
-
-
-def _mock_process(returncode: int = 0, stdout: bytes = b"", stderr: bytes = b"") -> MagicMock:
-    proc = MagicMock()
-    proc.returncode = returncode
-    proc.communicate = AsyncMock(return_value=(stdout, stderr))
-    proc.kill = MagicMock()
-    proc.wait = AsyncMock()
-    return proc
+def orchestrator(settings: Settings) -> BuildOrchestrator:
+    return BuildOrchestrator(settings)
 
 
 class TestThemeValidation:
@@ -74,179 +55,74 @@ class TestMarkdownValidation:
             orchestrator._validate_markdown(large_markdown)
 
     def test_markdown_at_limit(self, orchestrator: BuildOrchestrator) -> None:
-        # Exactly at limit should be fine
         orchestrator._validate_markdown("x" * MAX_MARKDOWN_SIZE)
 
 
 class TestBuild:
-    async def test_successful_build(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        proc = _mock_process(returncode=0)
+    async def test_successful_build(self, orchestrator: BuildOrchestrator) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"uuid": "test-uuid", "build_time_seconds": 3.5})
+        )
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
 
-        async def fake_exec(*args, **kwargs):
-            # Simulate the builder creating a dist directory
-            build_dir = Path(settings.build_inbox_dir) / "test-uuid"
-            dist_dir = build_dir / "dist"
-            dist_dir.mkdir(parents=True, exist_ok=True)
-            (dist_dir / "index.html").write_text("<html>slides</html>")
-            return proc
-
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-            result = await orchestrator.build("# Slide 1", "default", "test-uuid")
+        result = await orchestrator.build("# Slide 1", "default", "test-uuid")
 
         assert isinstance(result, BuildResult)
         assert result.uuid == "test-uuid"
         assert "/slides/test-uuid/" in result.url
-        assert result.build_time_seconds >= 0
+        assert result.build_time_seconds == 3.5
 
-        # Verify dist was moved to slides dir
-        slides_dir = Path(settings.slides_dir) / "test-uuid"
-        assert slides_dir.exists()
-        assert (slides_dir / "index.html").exists()
+    async def test_build_sends_correct_payload(self, orchestrator: BuildOrchestrator) -> None:
+        captured = {}
 
-        # Verify build inbox was cleaned up
-        build_dir = Path(settings.build_inbox_dir) / "test-uuid"
-        assert not build_dir.exists()
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["json"] = req.content
+            captured["url"] = str(req.url)
+            return httpx.Response(200, json={"uuid": "test-uuid", "build_time_seconds": 1.0})
 
-    async def test_manifest_written_correctly(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        proc = _mock_process(returncode=0)
-        written_manifest = {}
+        orchestrator._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        )
 
-        async def fake_exec(*args, **kwargs):
-            build_dir = Path(settings.build_inbox_dir) / "test-uuid"
-            manifest_path = build_dir / "build-manifest.json"
-            nonlocal written_manifest
-            written_manifest = json.loads(manifest_path.read_text())
+        await orchestrator.build("# My Slides\n\nContent", "seriph", "test-uuid")
 
-            dist_dir = build_dir / "dist"
-            dist_dir.mkdir(parents=True, exist_ok=True)
-            (dist_dir / "index.html").write_text("<html></html>")
-            return proc
+        import json
 
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-            await orchestrator.build("# Slides", "seriph", "test-uuid")
+        payload = json.loads(captured["json"])
+        assert payload["markdown"] == "# My Slides\n\nContent"
+        assert payload["theme"] == "seriph"
+        assert payload["uuid"] == "test-uuid"
+        assert payload["base_path"] == "/slides/test-uuid/"
 
-        assert written_manifest["theme"] == "seriph"
-        assert written_manifest["uuid"] == "test-uuid"
-        assert written_manifest["base_path"] == "/slides/test-uuid/"
+    async def test_build_failed(self, orchestrator: BuildOrchestrator) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                500, json={"error": "build_failed", "details": "some error output"}
+            )
+        )
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
 
-    async def test_slides_md_written(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        proc = _mock_process(returncode=0)
-        written_slides = ""
-
-        async def fake_exec(*args, **kwargs):
-            build_dir = Path(settings.build_inbox_dir) / "test-uuid"
-            nonlocal written_slides
-            written_slides = (build_dir / "slides.md").read_text()
-
-            dist_dir = build_dir / "dist"
-            dist_dir.mkdir(parents=True, exist_ok=True)
-            (dist_dir / "index.html").write_text("<html></html>")
-            return proc
-
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-            await orchestrator.build("# My Slides\n\nContent here", "default", "test-uuid")
-
-        assert "# My Slides" in written_slides
-
-    async def test_build_failed(self, orchestrator: BuildOrchestrator, settings: Settings) -> None:
-        proc = _mock_process(returncode=1, stderr=b"some error output")
-
-        async def fake_exec(*args, **kwargs):
-            # Create the build dir so cleanup works
-            build_dir = Path(settings.build_inbox_dir) / "fail-uuid"
-            build_dir.mkdir(parents=True, exist_ok=True)
-            return proc
-
-        with (
-            patch("asyncio.create_subprocess_exec", side_effect=fake_exec),
-            pytest.raises(BuildFailed, match="some error output"),
-        ):
+        with pytest.raises(BuildFailed, match="some error output"):
             await orchestrator.build("# Slides", "default", "fail-uuid")
 
-        # Build inbox should still be cleaned up
-        assert not (Path(settings.build_inbox_dir) / "fail-uuid").exists()
+    async def test_build_timeout(self, orchestrator: BuildOrchestrator) -> None:
+        def handler(req: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("timed out")
 
-    async def test_build_failed_with_error_json(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        proc = _mock_process(returncode=1)
+        orchestrator._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        )
 
-        async def fake_exec(*args, **kwargs):
-            build_dir = Path(settings.build_inbox_dir) / "fail-uuid"
-            build_dir.mkdir(parents=True, exist_ok=True)
-            error_info = {"exit_code": 1, "stderr": "Detailed error from builder"}
-            (build_dir / "error.json").write_text(json.dumps(error_info))
-            return proc
-
-        with (
-            patch("asyncio.create_subprocess_exec", side_effect=fake_exec),
-            pytest.raises(BuildFailed, match="Detailed error from builder"),
-        ):
-            await orchestrator.build("# Slides", "default", "fail-uuid")
-
-    async def test_build_timeout(self, orchestrator: BuildOrchestrator, settings: Settings) -> None:
-        proc = _mock_process()
-
-        async def slow_communicate():
-            await asyncio.sleep(100)
-            return (b"", b"")
-
-        proc.communicate = slow_communicate
-
-        async def fake_exec(*args, **kwargs):
-            build_dir = Path(settings.build_inbox_dir) / "timeout-uuid"
-            build_dir.mkdir(parents=True, exist_ok=True)
-            return proc
-
-        with (
-            patch("asyncio.create_subprocess_exec", side_effect=fake_exec),
-            pytest.raises(BuildTimeout),
-        ):
+        with pytest.raises(BuildTimeout):
             await orchestrator.build("# Slides", "default", "timeout-uuid")
 
-    async def test_overwrite_existing_slides(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        # Pre-create an existing slides directory
-        existing_dir = Path(settings.slides_dir) / "overwrite-uuid"
-        existing_dir.mkdir(parents=True)
-        (existing_dir / "old.html").write_text("<html>old</html>")
+    async def test_theme_not_found_from_builder(self, orchestrator: BuildOrchestrator) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                400, json={"error": "theme_not_found", "details": "Theme directory not found"}
+            )
+        )
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
 
-        proc = _mock_process(returncode=0)
-
-        async def fake_exec(*args, **kwargs):
-            build_dir = Path(settings.build_inbox_dir) / "overwrite-uuid"
-            dist_dir = build_dir / "dist"
-            dist_dir.mkdir(parents=True, exist_ok=True)
-            (dist_dir / "index.html").write_text("<html>new</html>")
-            return proc
-
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
-            await orchestrator.build("# Updated", "default", "overwrite-uuid")
-
-        slides_dir = Path(settings.slides_dir) / "overwrite-uuid"
-        assert (slides_dir / "index.html").read_text() == "<html>new</html>"
-        assert not (slides_dir / "old.html").exists()
-
-    async def test_missing_dist_raises_build_failed(
-        self, orchestrator: BuildOrchestrator, settings: Settings
-    ) -> None:
-        proc = _mock_process(returncode=0)
-
-        async def fake_exec(*args, **kwargs):
-            # Don't create dist dir — simulates builder not producing output
-            build_dir = Path(settings.build_inbox_dir) / "no-dist-uuid"
-            build_dir.mkdir(parents=True, exist_ok=True)
-            return proc
-
-        with (
-            patch("asyncio.create_subprocess_exec", side_effect=fake_exec),
-            pytest.raises(BuildFailed, match="dist/ directory not found"),
-        ):
-            await orchestrator.build("# Slides", "default", "no-dist-uuid")
+        with pytest.raises(BuildFailed, match="theme_not_found"):
+            await orchestrator.build("# Slides", "default", "test-uuid")

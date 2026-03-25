@@ -4,8 +4,10 @@ import json
 import logging
 import shutil
 import sys
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Annotated
 
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
@@ -105,8 +107,7 @@ async def app_lifespan(server: FastMCP):
 
     # Session map and build orchestrator
     session_map = SessionMap()
-    semaphore = asyncio.Semaphore(settings.max_concurrent_builds)
-    builder = BuildOrchestrator(settings, semaphore)
+    builder = BuildOrchestrator(settings)
 
     # Resources
     vendor_dir = Path(__file__).parent.parent.parent / "vendor" / "slidev-docs" / "docs"
@@ -140,6 +141,7 @@ async def app_lifespan(server: FastMCP):
         gc_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await gc_task
+        await builder.close()
         await engine.dispose()
 
 
@@ -175,31 +177,83 @@ async def health_check(request):
         status["status"] = "degraded"
         status["checks"]["database"] = str(e)
 
-    # Check build semaphore
+    # Check builder connectivity
     try:
         if lc and "builder" in lc:
-            sem = lc["builder"]._semaphore
-            status["checks"]["builds"] = {
-                "available": sem._value,
-                "max": lc["settings"].max_concurrent_builds,
-            }
+            resp = await lc["builder"]._client.get("/health")
+            status["checks"]["builder"] = resp.json() if resp.status_code == 200 else "unhealthy"
         else:
-            status["checks"]["builds"] = "unavailable"
+            status["checks"]["builder"] = "unavailable"
     except Exception:
-        status["checks"]["builds"] = "unavailable"
+        status["checks"]["builder"] = "unreachable"
 
     code = 200 if status["status"] == "ok" else 503
     return JSONResponse(status, status_code=code)
 
 
-@mcp.tool
+@dataclass
+class RenderResult:
+    """Result of rendering a Slidev presentation."""
+
+    url: str
+    uuid: str
+    build_time_seconds: float
+
+
+@dataclass
+class SlideInfo:
+    """Information about a single slide deck."""
+
+    uuid: str
+    url: str
+    theme: str
+    created_at: str | None
+    updated_at: str | None
+
+
+@dataclass
+class SessionSlides:
+    """All slides created in the current session."""
+
+    slides: list[SlideInfo] = field(default_factory=list)
+
+
+@mcp.tool(
+    annotations={
+        "title": "Render Slidev Presentation",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": False,
+    },
+)
 async def render_slides(
-    markdown: str,
-    theme: str,
-    uuid: str | None = None,
+    markdown: Annotated[
+        str,
+        "Full Slidev markdown including frontmatter. Use layouts, components, "
+        "and features specific to the chosen theme.",
+    ],
+    theme: Annotated[
+        str,
+        "Theme name (e.g. 'seriph', 'default', 'neocarbon'). "
+        "Read slidev://themes/installed for the full list of available themes.",
+    ],
+    uuid: Annotated[
+        str | None,
+        "UUID of an existing presentation to update in-place (same URL). "
+        "Omit to create a new presentation.",
+    ] = None,
     ctx: Context = None,
-) -> dict:
+) -> RenderResult:
     """Render a Slidev presentation from markdown and return its hosted URL.
+
+    IMPORTANT: Before calling this tool, you MUST first read the resource
+    `slidev://themes/{theme_name}` for the theme you plan to use. Each theme
+    has unique layouts, components, and frontmatter options documented there.
+    Apply the theme's specific features (layouts, components, slots) in your
+    markdown to produce high-quality slides that match the theme's design.
+
+    Also read `slidev://themes/installed` to see all available themes.
 
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
     """
@@ -228,7 +282,7 @@ async def render_slides(
                 "success": True,
             },
         )
-        return result
+        return RenderResult(**result)
     except SlidevMcpError as e:
         logger.warning(
             "render_slides failed: %s",
@@ -243,16 +297,28 @@ async def render_slides(
         raise ValueError(f"[{e.code}] {e.message}") from None
 
 
-@mcp.tool
-async def list_session_slides(ctx: Context) -> dict:
-    """List all slides created in the current MCP session."""
+@mcp.tool(
+    annotations={
+        "title": "List Session Slides",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+)
+async def list_session_slides(ctx: Context) -> SessionSlides:
+    """List all slide presentations created in the current MCP session.
+
+    Returns URLs, themes, and timestamps for each presentation you've created.
+    """
     lc = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
 
-    return await _list_session_slides(
+    result = await _list_session_slides(
         session_id=session_id,
         db_session_factory=lc["db_session_factory"],
         settings=lc["settings"],
+    )
+    return SessionSlides(
+        slides=[SlideInfo(**s) for s in result["slides"]],
     )
 
 

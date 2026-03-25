@@ -70,7 +70,7 @@ The assistant will re-render the slides using the same UUID. The URL stays the s
 |---|---|
 | [**Tools**](/reference/tools) | Render slides, list session slides |
 | [**Resources**](/reference/resources) | Slidev syntax, animations, layouts, components, themes, examples |
-| [**Themes**](/reference/themes) | 30+ pre-installed themes to choose from |
+| [**Themes**](/reference/themes) | 13 curated themes to choose from |
 
 ## Next Steps
 

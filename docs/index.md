@@ -17,8 +17,8 @@ hero:
 features:
   - title: Markdown-Powered
     details: Write presentations in plain markdown with Slidev syntax. Your AI assistant handles the rest.
-  - title: 30+ Themes
-    details: Choose from over 30 pre-installed themes. Just specify a theme name and your slides are styled instantly.
+  - title: 13 Curated Themes
+    details: Choose from 13 curated themes — all license-checked, version-pinned, and build-validated.
   - title: Any MCP Client
     details: Works with Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, JetBrains, Zed, ChatGPT, and more.
   - title: Hosted & Shareable

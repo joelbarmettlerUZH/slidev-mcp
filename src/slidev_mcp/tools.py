@@ -7,7 +7,6 @@ from sqlalchemy import select
 
 from slidev_mcp.builder import BuildOrchestrator
 from slidev_mcp.errors import (
-    ConcurrentLimitReached,
     InvalidUuid,
     UuidForeign,
     UuidSealed,
@@ -57,15 +56,7 @@ async def render_slides(
             if existing is not None:
                 raise UuidSealed(uuid)
 
-    # Acquire build semaphore (non-blocking)
-    if builder._semaphore.locked():
-        raise ConcurrentLimitReached()
-    await builder._semaphore.acquire()
-
-    try:
-        result = await builder.build(markdown, theme, uuid)
-    finally:
-        builder._semaphore.release()
+    result = await builder.build(markdown, theme, uuid)
 
     # Update DB and session map
     async with db_session_factory() as session:

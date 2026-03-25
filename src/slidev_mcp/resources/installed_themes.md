@@ -2,6 +2,8 @@
 
 The following themes are pre-installed in the Slidev MCP builder and available for use with the `render_slides` tool. Use the theme name in the `theme` parameter.
 
+Each theme has been individually verified: license checked (all MIT or Apache-2.0), pinned to a specific version, and validated to build correctly with its corresponding Slidev version.
+
 ## Official Themes
 
 | Theme | Description |
@@ -16,35 +18,25 @@ The following themes are pre-installed in the Slidev MCP builder and available f
 
 | Theme | Description |
 |-------|-------------|
-| `ehl2022` | EHL China default presentation template with UnoCSS |
-| `cobalt` | Deep cobalt blue color scheme with framed layouts |
 | `academic` | Formal theme suited for academic presentations and lectures |
-| `scholarly` | LaTeX Beamer-style styling for scholarly presentations |
-| `neversink` | Education/academia oriented theme with whimsical elements |
-| `meetup` | Theme designed for meetup and conference talks |
-| `penguin` | Clean and professional theme with blue accents |
-| `geist` | Vercel-inspired minimalist theme with modern typography |
-| `purplin` | Vibrant purple-themed design with gradient accents |
-| `nmt` | Theme based on The unnamed VS Code theme by Elio Struyf |
-| `nearform` | NearForm corporate theme for technical presentations |
-| `mistica` | Telefonica Mistica design system theme (Movistar, O2, Vivo skins) |
-| `alchemmist` | Alchemmist-styled presentation theme |
-| `the-unnamed` | Dark theme based on The unnamed VS Code theme |
-| `whulug` | Community theme with a clean, modern aesthetic |
-| `one-purple-unicorn-pro` | Purple/indigo focused theme with clean macOS style |
-| `nord` | Theme based on the Nord color palette (arctic, north-bluish) |
-| `light-icons` | Light theme with icon-focused design elements |
-| `vibe` | Dark-mode theme with glassmorphism and neon accents |
-| `greycat` | GreyCat-branded data-centric theme |
-| `neocarbon` | Premium dark theme with cinematic animations and glass morphism |
-| `umn` | Theme inspired by University of Minnesota branding |
+| `cobalt` | Deep cobalt blue color scheme with framed layouts |
+| `dracula` | Dark theme based on the popular Dracula color scheme |
+| `eloc` | Focus on writing, present in a concise style |
 | `field-manual` | Vintage US Army field manual aesthetic (1950s-1980s) |
-| `scorpion` | Scorpion-styled presentation theme |
-| `ucsf` | UCSF-inspired presentation theme |
-| `dataerai` | Data-focused professional theme |
-| `measurelab` | Measurelab branded analytics presentation theme |
-| `academic-schober` | Academic presentations variant with personal styling |
+| `frankfurt` | Inspired by the LaTeX Beamer theme Frankfurt |
+| `geist` | Vercel-inspired minimalist theme with modern typography |
+| `neocarbon` | Premium dark theme with cinematic animations and glass morphism |
+| `neversink` | Education/academia oriented theme with whimsical elements |
+| `nord` | Theme based on the Nord color palette (arctic, north-bluish) |
+| `penguin` | Clean and professional theme with blue accents |
+| `purplin` | Vibrant purple-themed design with gradient accents |
+| `scholarly` | LaTeX Beamer-style styling for scholarly presentations |
 | `swiss-ai-hub` | Professional theme with Swiss AI-Hub branding and gradient backgrounds |
+| `the-unnamed` | Dark theme based on The unnamed VS Code theme |
+| `unicorn` | Based on Dawntraoz website design with dark/light modes |
+| `vibe` | Dark-mode theme with glassmorphism and neon accents |
+| `vuetiful` | A Vue-inspired theme for Slidev |
+| `zhozhoba` | A zhozhoba theme with dark/light mode support |
 
 ## Usage
 

@@ -1,6 +1,6 @@
 # Dev: infrastructure only (no application code).
 # The MCP server runs on the host via `make serve`.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# Usage: docker compose -f docker-compose.dev.yml up -d
 
 x-logging: &default-logging
   driver: json-file
@@ -14,25 +14,20 @@ services:
       context: ./builder
       dockerfile: Dockerfile
     container_name: builder
-    networks: [isolated]
     volumes:
-      - build-inbox:/data/builds
       - slides-data:/data/slides
     user: "1000:1000"
     mem_limit: 2g
     cpus: 2.0
-    read_only: true
-    tmpfs:
-      - /tmp
     security_opt:
       - "no-new-privileges:true"
-    command: ["sleep", "infinity"]
+    ports:
+      - "3000:3000"
     logging: *default-logging
     restart: unless-stopped
 
   postgres:
     image: postgres:17-alpine
-    networks: [internal]
     volumes:
       - pg-data:/var/lib/postgresql/data
     ports:
@@ -50,3 +45,7 @@ services:
     cpus: 1.0
     logging: *default-logging
     restart: unless-stopped
+
+volumes:
+  slides-data:
+  pg-data:

@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,7 +7,6 @@ from slidev_mcp.builder import BuildOrchestrator, BuildResult
 from slidev_mcp.config import Settings
 from slidev_mcp.errors import (
     BuildFailed,
-    ConcurrentLimitReached,
     InvalidUuid,
     ThemeNotAllowed,
     UuidForeign,
@@ -32,7 +30,6 @@ def session_map() -> SessionMap:
 @pytest.fixture
 def mock_builder() -> MagicMock:
     builder = MagicMock(spec=BuildOrchestrator)
-    builder._semaphore = asyncio.Semaphore(3)
 
     async def fake_build(markdown: str, theme: str, uuid: str) -> BuildResult:
         return BuildResult(
@@ -177,25 +174,6 @@ class TestRenderSlides:
                 theme="default",
                 uuid=bad_uuid,
                 session_id="my-session",
-                session_map=session_map,
-                builder=mock_builder,
-                db_session_factory=db_session_factory,
-            )
-
-    async def test_concurrent_limit(
-        self,
-        mock_builder: MagicMock,
-        session_map: SessionMap,
-        db_session_factory: async_sessionmaker[AsyncSession],
-    ) -> None:
-        # Exhaust the semaphore
-        mock_builder._semaphore = asyncio.Semaphore(0)
-
-        with pytest.raises(ConcurrentLimitReached):
-            await render_slides(
-                markdown="# Test",
-                theme="default",
-                session_id="session-1",
                 session_map=session_map,
                 builder=mock_builder,
                 db_session_factory=db_session_factory,

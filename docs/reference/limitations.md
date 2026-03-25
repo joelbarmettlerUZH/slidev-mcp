@@ -43,4 +43,4 @@ Slidev MCP is designed to be simple and secure. Some Slidev features are not ava
 
 ## Theme Set
 
-The available themes are fixed at build time. You cannot install custom themes at runtime. See the [full theme list](/reference/themes).
+The available themes are fixed at build time. Each theme is individually curated — license-checked, version-pinned, and build-validated. You cannot install custom themes at runtime. See the [full theme list](/reference/themes).

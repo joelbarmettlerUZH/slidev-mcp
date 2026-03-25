@@ -1,11 +1,27 @@
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
+import { copyFile, mkdir, readdir, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
-interface BuildManifest {
+export interface BuildParams {
+  markdown: string;
   theme: string;
   uuid: string;
-  base_path: string;
+  basePath: string;
+}
+
+export interface BuildResult {
+  uuid: string;
+  build_time_seconds: number;
+}
+
+class BuildError extends Error {
+  code: string;
+  status: number;
+  constructor(code: string, message: string, status = 500) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
 }
 
 async function copyDir(src: string, dest: string): Promise<void> {
@@ -14,6 +30,9 @@ async function copyDir(src: string, dest: string): Promise<void> {
   for (const entry of entries) {
     const srcPath = join(src, entry.name);
     const destPath = join(dest, entry.name);
+    if (entry.name === "node_modules" || entry.name === "dist-test") {
+      continue; // Skip — we symlink node_modules separately
+    }
     if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
@@ -22,113 +41,98 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
-  const buildDir = process.argv[2];
-  if (!buildDir) {
-    console.error("Usage: build-job.ts <build-directory>");
-    process.exit(1);
+function patchFrontmatter(markdown: string, theme: string): string {
+  const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
+  const match = markdown.match(frontmatterRegex);
+
+  const requiredFields: Record<string, string> = {
+    theme: theme,
+    routerMode: "hash",
+  };
+
+  if (match) {
+    let frontmatter = match[1];
+    for (const [key, value] of Object.entries(requiredFields)) {
+      const fieldRegex = new RegExp(`^${key}:\\s*.*$`, "m");
+      if (fieldRegex.test(frontmatter)) {
+        frontmatter = frontmatter.replace(fieldRegex, `${key}: ${value}`);
+      } else {
+        frontmatter = `${key}: ${value}\n${frontmatter}`;
+      }
+    }
+    return markdown.replace(frontmatterRegex, `---\n${frontmatter}\n---`);
+  } else {
+    const fields = Object.entries(requiredFields)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n");
+    return `---\n${fields}\n---\n\n${markdown}`;
+  }
+}
+
+export async function runBuild(params: BuildParams): Promise<BuildResult> {
+  const { markdown, theme, uuid, basePath } = params;
+
+  // Locate the theme's project directory
+  const themeDir = join("/app/themes", theme);
+  if (!existsSync(themeDir)) {
+    throw new BuildError("theme_not_found", `Theme directory not found: ${theme}`, 400);
   }
 
-  const manifestPath = join(buildDir, "build-manifest.json");
-  const slidesPath = join(buildDir, "slides.md");
-  const workDir = join(buildDir, "work");
-  const distDir = join(buildDir, "dist");
+  const workDir = join("/tmp/builds", uuid, "work");
+  const distDir = join("/data/slides", uuid);
+  const start = Date.now();
 
   try {
-    // Read manifest
-    const manifestRaw = await readFile(manifestPath, "utf-8");
-    const manifest: BuildManifest = JSON.parse(manifestRaw);
+    // Copy theme project into work directory (excludes node_modules)
+    await copyDir(themeDir, workDir);
 
-    // Read user slides
-    const slidesContent = await readFile(slidesPath, "utf-8");
-
-    // Copy template into work directory
-    const templateDir = "/app/template";
-    await copyDir(templateDir, workDir);
-
-    // Patch theme into frontmatter and write slides
-    const themedSlides = patchTheme(slidesContent, manifest.theme);
+    // Patch theme + routerMode into frontmatter and write slides
+    const themedSlides = patchFrontmatter(markdown, theme);
     await writeFile(join(workDir, "slides.md"), themedSlides, "utf-8");
 
-    // Symlink node_modules from the app root so slidev can find themes
-    const nodeModulesSrc = "/app/node_modules";
+    // Symlink node_modules from the theme's own install
+    const nodeModulesSrc = join(themeDir, "node_modules");
     const nodeModulesDest = join(workDir, "node_modules");
     if (!existsSync(nodeModulesDest)) {
       await Bun.spawn(["ln", "-s", nodeModulesSrc, nodeModulesDest]).exited;
     }
 
+    // Clean existing slides directory if overwriting
+    if (existsSync(distDir)) {
+      await rm(distDir, { recursive: true, force: true });
+    }
+
     // Run slidev build
     const proc = Bun.spawn(
-      [
-        "bunx",
-        "slidev",
-        "build",
-        "--base",
-        manifest.base_path,
-        "--out",
-        distDir,
-      ],
+      ["bunx", "slidev", "build", "--base", basePath, "--out", distDir],
       {
         cwd: workDir,
-        stdout: "inherit",
-        stderr: "inherit",
+        stdout: "pipe",
+        stderr: "pipe",
       }
     );
 
     const exitCode = await proc.exited;
+    const elapsed = (Date.now() - start) / 1000;
 
     if (exitCode !== 0) {
-      const errorInfo = {
-        exit_code: exitCode,
-        stderr: `Build exited with code ${exitCode}`,
-      };
-      await writeFile(
-        join(buildDir, "error.json"),
-        JSON.stringify(errorInfo),
-        "utf-8"
+      const stderr = await new Response(proc.stderr).text();
+      throw new BuildError(
+        "build_failed",
+        `Build exited with code ${exitCode}: ${stderr.slice(-500)}`
       );
-      process.exit(exitCode);
     }
-  } catch (err: any) {
-    const errorInfo = {
-      exit_code: 1,
-      stderr: err.message || String(err),
-    };
-    await writeFile(
-      join(buildDir, "error.json"),
-      JSON.stringify(errorInfo),
-      "utf-8"
-    );
-    process.exit(1);
+
+    if (!existsSync(join(distDir, "index.html"))) {
+      throw new BuildError("build_failed", "Build completed but no index.html produced");
+    }
+
+    return { uuid, build_time_seconds: Math.round(elapsed * 100) / 100 };
   } finally {
     // Clean up work directory
-    if (existsSync(workDir)) {
-      await rm(workDir, { recursive: true, force: true });
+    const buildTmp = join("/tmp/builds", uuid);
+    if (existsSync(buildTmp)) {
+      await rm(buildTmp, { recursive: true, force: true });
     }
   }
 }
-
-function patchTheme(markdown: string, theme: string): string {
-  // If markdown already has frontmatter, patch or add theme field
-  const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
-  const match = markdown.match(frontmatterRegex);
-
-  if (match) {
-    const frontmatter = match[1];
-    const themeRegex = /^theme:\s*.*$/m;
-    if (themeRegex.test(frontmatter)) {
-      // Replace existing theme
-      const patched = frontmatter.replace(themeRegex, `theme: ${theme}`);
-      return markdown.replace(frontmatterRegex, `---\n${patched}\n---`);
-    } else {
-      // Add theme to existing frontmatter
-      const patched = `theme: ${theme}\n${frontmatter}`;
-      return markdown.replace(frontmatterRegex, `---\n${patched}\n---`);
-    }
-  } else {
-    // No frontmatter — prepend one
-    return `---\ntheme: ${theme}\n---\n\n${markdown}`;
-  }
-}
-
-main();

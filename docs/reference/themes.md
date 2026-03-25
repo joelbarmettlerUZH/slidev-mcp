@@ -1,15 +1,14 @@
 ---
-description: All pre-installed Slidev themes available on the server — with visual previews.
+description: All 13 pre-installed Slidev themes — 5 official and 8 community. Each is license-checked, version-pinned, and build-validated.
 ---
 
 <script setup>
 import ThemeGallery from '../.vitepress/theme/components/ThemeGallery.vue'
-import { additional } from '../.vitepress/themes'
 </script>
 
 # Themes
 
-Slidev MCP ships with over 30 pre-installed themes. Specify the theme name in your request and the server handles the rest.
+Slidev MCP ships with 24 pre-installed themes — 5 official and 19 community. Each has been individually verified: license checked (all MIT or Apache-2.0), version pinned, and build validated.
 
 ::: tip
 You don't need to remember these names. Just ask your AI assistant to "list available themes" and it will read the theme resource from the server.
@@ -26,23 +25,6 @@ You don't need to remember these names. Just ask your AI assistant to "list avai
 <ClientOnly>
   <ThemeGallery collection="community" />
 </ClientOnly>
-
-## Additional Themes
-
-The following themes are also pre-installed but don't have preview images available:
-
-<table>
-  <thead>
-    <tr><th>Theme ID</th><th>Name</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    <tr v-for="t in additional" :key="t.id">
-      <td><code>{{ t.id }}</code></td>
-      <td>{{ t.name }}</td>
-      <td>{{ t.description }}</td>
-    </tr>
-  </tbody>
-</table>
 
 ## Usage
 

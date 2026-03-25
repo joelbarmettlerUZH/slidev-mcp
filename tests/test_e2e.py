@@ -1,10 +1,9 @@
 """End-to-end tests that start the real MCP server in-memory and test tools via the MCP protocol."""
 
-import asyncio
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from fastmcp import Context, FastMCP
 from fastmcp.client import Client
@@ -21,27 +20,17 @@ from slidev_mcp.tools import list_session_slides as _list_session_slides
 from slidev_mcp.tools import render_slides as _render_slides
 
 
-def _fake_subprocess(settings: Settings):
-    """Returns a mock for asyncio.create_subprocess_exec that simulates a successful build."""
+def _mock_builder_http() -> httpx.AsyncClient:
+    """Returns an httpx.AsyncClient with a mock transport that simulates successful builds."""
 
-    async def fake_exec(*args, **kwargs):
-        # Extract UUID from the command args: last arg is /data/builds/{uuid}
-        build_path = args[-1]
-        uuid = build_path.split("/")[-1]
+    def handler(req: httpx.Request) -> httpx.Response:
+        data = json.loads(req.content)
+        return httpx.Response(
+            200,
+            json={"uuid": data["uuid"], "build_time_seconds": 2.5},
+        )
 
-        build_dir = Path(settings.build_inbox_dir) / uuid
-        dist_dir = build_dir / "dist"
-        dist_dir.mkdir(parents=True, exist_ok=True)
-        (dist_dir / "index.html").write_text("<html><body>Slidev Presentation</body></html>")
-
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"", b""))
-        proc.kill = MagicMock()
-        proc.wait = AsyncMock()
-        return proc
-
-    return fake_exec
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://builder")
 
 
 def _create_test_server(settings: Settings) -> FastMCP:
@@ -54,8 +43,8 @@ def _create_test_server(settings: Settings) -> FastMCP:
         db_session_factory = create_session_factory(engine)
 
         session_map = SessionMap()
-        semaphore = asyncio.Semaphore(settings.max_concurrent_builds)
-        builder = BuildOrchestrator(settings, semaphore)
+        builder = BuildOrchestrator(settings)
+        builder._client = _mock_builder_http()
 
         try:
             yield {
@@ -65,6 +54,7 @@ def _create_test_server(settings: Settings) -> FastMCP:
                 "builder": builder,
             }
         finally:
+            await builder.close()
             await engine.dispose()
 
     server = FastMCP(
@@ -122,7 +112,6 @@ def settings(tmp_path: Path) -> Settings:
     return Settings(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         slides_dir=str(tmp_path / "slides"),
-        build_inbox_dir=str(tmp_path / "builds"),
         domain="test.example.com",
         build_timeout=30,
     )
@@ -139,16 +128,12 @@ def _tool_text(result) -> str:
 
 
 class TestE2ERenderSlides:
-    async def test_render_new_slides(self, test_server: FastMCP, settings: Settings) -> None:
-        with patch(
-            "asyncio.create_subprocess_exec",
-            side_effect=_fake_subprocess(settings),
-        ):
-            async with Client(transport=test_server) as client:
-                result = await client.call_tool(
-                    "render_slides",
-                    {"markdown": "# Hello\n\n---\n\n## World", "theme": "default"},
-                )
+    async def test_render_new_slides(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool(
+                "render_slides",
+                {"markdown": "# Hello\n\n---\n\n## World", "theme": "default"},
+            )
 
         data = json.loads(_tool_text(result))
         assert "url" in data
@@ -156,36 +141,30 @@ class TestE2ERenderSlides:
         assert "build_time_seconds" in data
         assert "test.example.com" in data["url"]
 
-    async def test_render_and_update_slides(self, test_server: FastMCP, settings: Settings) -> None:
-        with patch(
-            "asyncio.create_subprocess_exec",
-            side_effect=_fake_subprocess(settings),
-        ):
-            async with Client(transport=test_server) as client:
-                # Create
-                result1 = await client.call_tool(
-                    "render_slides",
-                    {"markdown": "# Version 1", "theme": "default"},
-                )
-                data1 = json.loads(_tool_text(result1))
-                slide_uuid = data1["uuid"]
+    async def test_render_and_update_slides(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            # Create
+            result1 = await client.call_tool(
+                "render_slides",
+                {"markdown": "# Version 1", "theme": "default"},
+            )
+            data1 = json.loads(_tool_text(result1))
+            slide_uuid = data1["uuid"]
 
-                # Update with same UUID
-                result2 = await client.call_tool(
-                    "render_slides",
-                    {
-                        "markdown": "# Version 2",
-                        "theme": "seriph",
-                        "uuid": slide_uuid,
-                    },
-                )
-                data2 = json.loads(_tool_text(result2))
+            # Update with same UUID
+            result2 = await client.call_tool(
+                "render_slides",
+                {
+                    "markdown": "# Version 2",
+                    "theme": "seriph",
+                    "uuid": slide_uuid,
+                },
+            )
+            data2 = json.loads(_tool_text(result2))
 
         assert data2["uuid"] == slide_uuid
 
-    async def test_invalid_theme_returns_error(
-        self, test_server: FastMCP, settings: Settings
-    ) -> None:
+    async def test_invalid_theme_returns_error(self, test_server: FastMCP) -> None:
         from fastmcp.exceptions import ToolError
 
         async with Client(transport=test_server) as client:
@@ -195,24 +174,20 @@ class TestE2ERenderSlides:
                     {"markdown": "# Test", "theme": "nonexistent-theme"},
                 )
 
-    async def test_render_then_list(self, test_server: FastMCP, settings: Settings) -> None:
-        with patch(
-            "asyncio.create_subprocess_exec",
-            side_effect=_fake_subprocess(settings),
-        ):
-            async with Client(transport=test_server) as client:
-                # Render two slides
-                await client.call_tool(
-                    "render_slides",
-                    {"markdown": "# Deck 1", "theme": "default"},
-                )
-                await client.call_tool(
-                    "render_slides",
-                    {"markdown": "# Deck 2", "theme": "seriph"},
-                )
+    async def test_render_then_list(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            # Render two slides
+            await client.call_tool(
+                "render_slides",
+                {"markdown": "# Deck 1", "theme": "default"},
+            )
+            await client.call_tool(
+                "render_slides",
+                {"markdown": "# Deck 2", "theme": "seriph"},
+            )
 
-                # List session slides
-                result = await client.call_tool("list_session_slides", {})
+            # List session slides
+            result = await client.call_tool("list_session_slides", {})
 
         data = json.loads(_tool_text(result))
         assert len(data["slides"]) == 2

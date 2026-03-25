@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2",
     "asyncpg>=0.30",
     "pydantic-settings>=2",
+    "httpx>=0.28.1",
 ]
 
 [build-system]

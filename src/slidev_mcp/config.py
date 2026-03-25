@@ -1,42 +1,32 @@
 from pydantic_settings import BaseSettings
 
 ALLOWED_THEMES: list[str] = [
-    # Official @slidev/theme-* packages
+    # Official @slidev/theme-* packages (MIT, maintained by Slidev team)
     "default",
     "seriph",
     "apple-basic",
     "bricks",
     "shibainu",
-    # Community slidev-theme-* packages (sorted by npm downloads)
-    "ehl2022",
-    "cobalt",
+    # Community slidev-theme-* packages (all MIT or Apache-2.0, build-validated)
     "academic",
-    "scholarly",
-    "neversink",
-    "meetup",
-    "penguin",
-    "geist",
-    "purplin",
-    "nmt",
-    "nearform",
-    "mistica",
-    "alchemmist",
-    "the-unnamed",
-    "whulug",
-    "one-purple-unicorn-pro",
-    "nord",
-    "light-icons",
-    "vibe",
-    "greycat",
-    "neocarbon",
-    "umn",
+    "cobalt",
+    "dracula",
+    "eloc",
     "field-manual",
-    "scorpion",
-    "ucsf",
-    "dataerai",
-    "measurelab",
-    "academic-schober",
+    "frankfurt",
+    "geist",
+    "neocarbon",
+    "neversink",
+    "nord",
+    "penguin",
+    "purplin",
+    "scholarly",
     "swiss-ai-hub",
+    "the-unnamed",
+    "unicorn",
+    "vibe",
+    "vuetiful",
+    "zhozhoba",
 ]
 
 
@@ -47,8 +37,8 @@ class Settings(BaseSettings):
     slides_domain: str = ""
     database_url: str = "postgresql+asyncpg://slidev:slidev@localhost:5432/slidev"
     slides_dir: str = "/data/slides"
-    build_inbox_dir: str = "/data/builds"
-    builder_container_name: str = "builder"
+    builder_host: str = "builder"
+    builder_port: int = 3000
     build_timeout: int = 120
     max_concurrent_builds: int = 3
     slide_ttl_days: int = 30
