@@ -1,17 +1,16 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
 .venv
 
-# Environment files
+# Environment & secrets
 .env
 .env.production
+.env.local
 
 # Vendor (created by make bootstrap)
 vendor/
@@ -22,10 +21,20 @@ vendor/
 # TLS certificates (mkcert)
 certs/
 
+# Node / Bun
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Builder (themes/ generated at docker build time)
+builder/themes/
+
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-docs/node_modules
+# OS
+.DS_Store
+Thumbs.db
