@@ -1,0 +1,176 @@
+name: Build, Backup & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute lowercase image names
+        id: meta
+        run: |
+          REPO="${{ github.repository }}"
+          REPO_LOWER="${REPO,,}"
+          echo "server=${{ env.REGISTRY }}/${REPO_LOWER}/slidev-mcp-server" >> "$GITHUB_OUTPUT"
+          echo "builder=${{ env.REGISTRY }}/${REPO_LOWER}/slidev-mcp-builder" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.mcp
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.server }}:latest
+            ${{ steps.meta.outputs.server }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
+
+      - name: Build & push builder image
+        uses: docker/build-push-action@v6
+        with:
+          context: builder
+          file: builder/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.builder }}:latest
+            ${{ steps.meta.outputs.builder }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=builder
+          cache-to: type=gha,mode=max,scope=builder
+
+  backup:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run pre-deploy backup on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }} && bash scripts/backup.sh /tmp/pre-deploy-backup docker-compose.prod.yml .env.production"
+
+      - name: Download PG backup from server
+        run: |
+          mkdir -p backup
+          scp "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/pre-deploy-backup/db-*.sql.gz" backup/db-backup.sql.gz
+
+      - name: Encrypt backup
+        run: |
+          echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            -o backup/db-backup.sql.gz.gpg backup/db-backup.sql.gz
+          rm backup/db-backup.sql.gz
+
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup/db-backup.sql.gz.gpg
+          retention-days: 90
+
+  deploy:
+    needs: backup
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ensure remote directory structure
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p ${DEPLOY_DIR}/docker ${DEPLOY_DIR}/scripts"
+
+      - name: Sync configuration files
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          scp -q \
+            docker-compose.prod.yml \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${DEPLOY_DIR}/"
+          scp -q \
+            docker/nginx.conf \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${DEPLOY_DIR}/docker/"
+          scp -q \
+            scripts/backup.sh \
+            scripts/restore.sh \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${DEPLOY_DIR}/scripts/"
+
+      - name: Write .env.production from secrets
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > ${DEPLOY_DIR}/.env.production << 'ENVEOF'
+          # PostgreSQL
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          DATABASE_URL=postgresql+asyncpg://slidev:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/slidev
+
+          # Server
+          DOMAIN=${{ vars.DOMAIN || 'slidev-mcp.org' }}
+          SERVER_TRANSPORT=streamable-http
+          SERVER_HOST=0.0.0.0
+          SERVER_PORT=8000
+          BUILDER_HOST=builder
+          BUILDER_PORT=3000
+
+          # Docker images
+          GITHUB_REPOSITORY=${{ github.repository }}
+          IMAGE_TAG=latest
+
+          # Traefik TLS
+          ACME_EMAIL=${{ secrets.ACME_EMAIL }}
+          ENVEOF"
+
+      - name: Pull and restart services
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            set -euo pipefail
+            cd ${DEPLOY_DIR}
+            docker compose --env-file .env.production -f docker-compose.prod.yml pull
+            docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+            echo 'Deploy complete. Services:'
+            docker compose --env-file .env.production -f docker-compose.prod.yml ps --format 'table {{.Name}}\t{{.Status}}'
+          "

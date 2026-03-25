@@ -222,6 +222,40 @@ make pr-ready      # lint-fix + format + test
 
 CI runs on every PR: `uv sync` → `ruff check` → `ruff format --check` → `pytest`.
 
+## Deployment
+
+**Infrastructure:** Single Infomaniak OpenStack VM, provisioned via `scripts/provision.sh`.
+
+**CI/CD pipeline** (`.github/workflows/deploy.yml`): push to main triggers build → backup → deploy.
+
+```
+Push to main
+  ↓
+Job 1: build
+  - Build slidev-mcp-server + slidev-mcp-builder images
+  - Push to GHCR with :latest and :sha-${SHA} tags
+  ↓
+Job 2: backup
+  - SSH to server, run pre-deploy backup
+  - Download PG dump, encrypt with GPG (AES256)
+  - Upload as GitHub artifact (90-day retention)
+  ↓
+Job 3: deploy
+  - SCP docker-compose.prod.yml, nginx.conf, scripts
+  - Write .env.production from GitHub Secrets
+  - docker compose pull + up -d --remove-orphans
+```
+
+**Manual deploy:** `DEPLOY_HOST=x.x.x.x scripts/deploy.sh` (requires `.env.production` already on server).
+
+**Backup:** Daily at 3 AM via cron (`scripts/backup.sh`). PG dump + slides tarball, 7-day rotation.
+
+**Restore:** Trigger `.github/workflows/restore.yml` from Actions tab with a workflow run ID.
+
+**GitHub Secrets required:** `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `POSTGRES_PASSWORD`, `ACME_EMAIL`, `BACKUP_ENCRYPTION_KEY`.
+
+**GitHub Variables:** `DOMAIN` (default: `slidev-mcp.org`), `DEPLOY_DIR` (default: `/opt/slidev-mcp`).
+
 ## Security
 
 - **Builder network isolation:** `isolated` network with `internal: true` — no internet access
@@ -262,4 +296,6 @@ CI runs on every PR: `uv sync` → `ruff check` → `ruff format --check` → `p
 | `make docker-dev-up/down` | Dev stack (builder + postgres) |
 | `make docker-local-up/down` | Full local stack with mkcert TLS |
 | `make docker-prod-up/down` | Production stack with Let's Encrypt |
+| `make deploy` | Show deploy info (CI/CD handles deploys) |
+| `make deploy-manual` | SSH deploy escape hatch |
 | `make docs-dev/build/preview` | VitePress docs |

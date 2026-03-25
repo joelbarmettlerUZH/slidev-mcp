@@ -1,0 +1,68 @@
+name: Restore from Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Workflow run ID to restore DB backup from (find in Actions tab)"
+        required: true
+        type: string
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Download encrypted backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-backup-${{ inputs.run_id }}
+          path: backup
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decrypt backup
+        run: |
+          echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
+            --decrypt -o backup/db-backup.sql.gz backup/db-backup.sql.gz.gpg
+
+      - name: Upload backup to server
+        run: |
+          scp backup/db-backup.sql.gz \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/db-restore.sql.gz"
+
+      - name: Run restore on server
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            cd ${DEPLOY_DIR}
+            bash scripts/restore.sh \
+              /tmp/db-restore.sql.gz \
+              '' \
+              docker-compose.prod.yml \
+              .env.production
+          "
+
+      - name: Verify restore
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            cd ${DEPLOY_DIR}
+            echo '=== Slide counts ==='
+            docker compose --env-file .env.production -f docker-compose.prod.yml \
+              exec -T postgres psql -U slidev slidev -c 'SELECT count(*) AS total_slides FROM slides;'
+            echo '=== Service status ==='
+            docker compose --env-file .env.production -f docker-compose.prod.yml \
+              ps --format 'table {{.Name}}\t{{.Status}}'
+          "

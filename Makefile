@@ -1,6 +1,6 @@
 .PHONY: install bootstrap lint lint-fix format format-check test test-all pr-ready \
         serve docker-build docker-dev-up docker-dev-down docker-prod-up docker-prod-down \
-        docs-install docs-dev docs-build docs-preview
+        deploy deploy-manual docs-install docs-dev docs-build docs-preview
 
 install:
 	uv sync
@@ -58,6 +58,13 @@ docker-prod-up:
 
 docker-prod-down:
 	docker compose -f docker-compose.prod.yml down
+
+deploy:
+	@echo "Deploy is handled by GitHub Actions CI/CD."
+	@echo "For manual deploy: make deploy-manual"
+
+deploy-manual:
+	scripts/deploy.sh
 
 docs-install:
 	cd docs && bun install

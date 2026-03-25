@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
-# Backup PostgreSQL database and optionally slide files.
-# Usage: ./scripts/backup.sh [backup_dir]
-# Default backup dir: ./backups
+# Backup PostgreSQL database and slide files.
+# Usage: ./scripts/backup.sh [backup_dir] [compose_file] [env_file]
+# Defaults: ./backups, docker-compose.prod.yml, .env.production
 # Keeps 7 days of backups.
 
 set -euo pipefail
 
 BACKUP_DIR="${1:-./backups}"
+COMPOSE_FILE="${2:-docker-compose.prod.yml}"
+ENV_FILE="${3:-.env.production}"
 RETENTION_DAYS=7
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+COMPOSE_CMD="docker compose --env-file $ENV_FILE -f $COMPOSE_FILE"
 
 mkdir -p "$BACKUP_DIR"
 
 echo "=== Backing up PostgreSQL ==="
-docker compose exec -T postgres pg_dump -U slidev slidev \
+$COMPOSE_CMD exec -T postgres pg_dump -U slidev slidev \
   | gzip > "$BACKUP_DIR/db-$TIMESTAMP.sql.gz"
 echo "Saved: $BACKUP_DIR/db-$TIMESTAMP.sql.gz"
 
 echo "=== Backing up slides ==="
-docker compose cp nginx:/data/slides - \
+$COMPOSE_CMD cp nginx:/data/slides - \
   | gzip > "$BACKUP_DIR/slides-$TIMESTAMP.tar.gz"
 echo "Saved: $BACKUP_DIR/slides-$TIMESTAMP.tar.gz"
 
