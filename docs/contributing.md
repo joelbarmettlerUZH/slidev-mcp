@@ -8,7 +8,7 @@ description: How to contribute to Slidev MCP — development setup, testing, add
 
 ```bash
 # Clone and install
-git clone https://github.com/joelbarmettler/slidev-mcp.git
+git clone https://github.com/joelbarmettlerUZH/slidev-mcp.git
 cd slidev-mcp
 make install
 
@@ -50,12 +50,7 @@ Individual commands:
 
 After bringing up the stack, verify the builder container has no internet access:
 
-```bash
-docker exec builder curl -s --max-time 3 https://google.com
-# Should fail: curl not found or connection refused
-```
-
-The builder is on an `internal: true` Docker network with no external egress.
+The builder runs on an `internal: true` Docker network with no external egress. It cannot reach the internet by design.
 
 ## Project Structure
 

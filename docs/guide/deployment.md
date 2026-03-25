@@ -16,7 +16,7 @@ Slidev MCP runs as a Docker Compose stack on a single VM. This guide covers prod
 
 ```bash
 # Clone the repository
-git clone https://github.com/joelbarmettler/slidev-mcp.git
+git clone https://github.com/joelbarmettlerUZH/slidev-mcp.git
 cd slidev-mcp
 
 # Create your .env file
@@ -35,7 +35,7 @@ ACME_EMAIL=you@example.com
 Start the stack:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Traefik will automatically obtain TLS certificates via Let's Encrypt. Your MCP server is now available at:
@@ -55,14 +55,13 @@ The stack runs 6 services:
 | **Builder** | Isolated Bun + Slidev build container (no network access) |
 | **PostgreSQL** | Build metadata and garbage collection |
 | **Nginx** | Static file serving for built slides |
-| **Docker Socket Proxy** | Restricted Docker API proxy for build dispatch |
 
 ## Verify
 
 Check that all services are running:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 ```
 
 Test the MCP endpoint:
@@ -76,8 +75,8 @@ curl https://mcp.example.com/mcp
 Pull the latest images and restart:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ## Backups

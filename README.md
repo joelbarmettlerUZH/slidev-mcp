@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://slidev-mcp.org">Website</a> &middot;
-  <a href="https://slidev-mcp.org/guide/getting-started">Getting Started</a> &middot;
-  <a href="https://slidev-mcp.org/clients/">MCP Clients</a> &middot;
-  <a href="https://slidev-mcp.org/reference/themes">Themes</a>
+  <a href="https://github.com/joelbarmettlerUZH/slidev-mcp">GitHub</a> &middot;
+  <a href="#quick-start">Getting Started</a> &middot;
+  <a href="#supported-mcp-clients">MCP Clients</a> &middot;
+  <a href="#themes">Themes</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/joelbarmettler/slidev-mcp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/joelbarmettler/slidev-mcp/ci.yml?label=tests&labelColor=212121" alt="Tests"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?labelColor=212121" alt="License"></a>
+  <a href="https://github.com/joelbarmettlerUZH/slidev-mcp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/joelbarmettlerUZH/slidev-mcp/ci.yml?label=tests&labelColor=212121" alt="Tests"></a>
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-FSL--1.1--ALv2-blue?labelColor=212121" alt="License"></a>
 </p>
 
 ---
@@ -26,7 +26,7 @@
 
 Connect your AI assistant to a Slidev MCP server, ask it to create a presentation, and get back a live URL — ready to share.
 
-- **13 curated themes** — all MIT-licensed, version-pinned, build-validated
+- **24 curated themes** — all MIT/Apache-2.0 licensed, version-pinned, build-validated
 - **Shareable URLs** — every presentation gets a unique link
 - **Iterative updates** — modify slides within the same session, same URL
 - **Secure** — builds run in isolated containers with no network access
@@ -35,16 +35,16 @@ Connect your AI assistant to a Slidev MCP server, ask it to create a presentatio
 
 | Client | Type |
 |---|---|
-| [Claude Code](https://slidev-mcp.org/clients/claude-code) | CLI |
-| [Claude Desktop](https://slidev-mcp.org/clients/claude-desktop) | Desktop app |
-| [Cursor](https://slidev-mcp.org/clients/cursor) | IDE |
-| [Windsurf](https://slidev-mcp.org/clients/windsurf) | IDE |
-| [VS Code (Copilot)](https://slidev-mcp.org/clients/vscode) | IDE |
-| [JetBrains IDEs](https://slidev-mcp.org/clients/jetbrains) | IDE |
-| [Zed](https://slidev-mcp.org/clients/zed) | IDE |
-| [Opencode](https://slidev-mcp.org/clients/opencode) | CLI |
-| [Gemini CLI](https://slidev-mcp.org/clients/gemini-cli) | CLI |
-| [ChatGPT](https://slidev-mcp.org/clients/chatgpt) | Web / Desktop |
+| [Claude Code](#claude-code) | CLI |
+| [Claude Desktop](#other-clients) | Desktop app |
+| [Cursor](#cursor) | IDE |
+| [Windsurf](#other-clients) | IDE |
+| [VS Code (Copilot)](#other-clients) | IDE |
+| [JetBrains IDEs](#other-clients) | IDE |
+| [Zed](#other-clients) | IDE |
+| [Opencode](#other-clients) | CLI |
+| [Gemini CLI](#other-clients) | CLI |
+| [ChatGPT](#other-clients) | Web / Desktop |
 
 Works with any client that supports [MCP](https://modelcontextprotocol.io/) streamable HTTP.
 
@@ -78,24 +78,30 @@ Any MCP client that supports streamable HTTP works with:
 https://your-server.example.com/mcp
 ```
 
-See the **[full client list](https://slidev-mcp.org/clients/)** for detailed setup instructions.
-
 ## Self-Hosting
 
 Slidev MCP is self-hosted. Deploy on your own server with Docker Compose:
 
 ```bash
-git clone https://github.com/joelbarmettler/slidev-mcp.git
+git clone https://github.com/joelbarmettlerUZH/slidev-mcp.git
 cd slidev-mcp
 cp .env.example .env    # Set DOMAIN, POSTGRES_PASSWORD, ACME_EMAIL
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-See the **[Deployment guide](https://slidev-mcp.org/guide/deployment)** for full instructions.
+## Themes
+
+24 pre-installed themes (5 official + 19 community), each individually verified:
+
+**Official:** `default`, `seriph`, `apple-basic`, `bricks`, `shibainu`
+
+**Community:** `academic`, `cobalt`, `dracula`, `eloc`, `field-manual`, `frankfurt`, `geist`, `neocarbon`, `neversink`, `nord`, `penguin`, `purplin`, `scholarly`, `swiss-ai-hub`, `the-unnamed`, `unicorn`, `vibe`, `vuetiful`, `zhozhoba`
+
+Each theme has its own isolated project with pinned dependencies — no cross-theme conflicts.
 
 ## How It Works
 
-Your AI assistant sends markdown + a theme name via MCP. The server builds the presentation in an isolated container (no network, read-only filesystem) and serves the result as a static site. No LLM runs on the server — your client generates the markdown, the server just builds and hosts it.
+Your AI assistant sends markdown + a theme name via MCP. The server builds the presentation in an isolated container (no network access, non-root user, resource-limited) and serves the result as a static site. No LLM runs on the server — your client generates the markdown, the server just builds and hosts it.
 
 ## Development
 
@@ -106,16 +112,6 @@ make serve            # Run MCP server locally
 make pr-ready         # Lint + format + test
 ```
 
-## Documentation
-
-Full documentation at **[slidev-mcp.org](https://slidev-mcp.org)**:
-
-- [Getting Started](https://slidev-mcp.org/guide/getting-started): Connect your AI assistant
-- [MCP Clients](https://slidev-mcp.org/clients/): Setup guides for all supported clients
-- [Themes](https://slidev-mcp.org/reference/themes): 13 curated themes
-- [Tools Reference](https://slidev-mcp.org/reference/tools): Full API documentation
-- [Deployment](https://slidev-mcp.org/guide/deployment): Self-host on your own server
-
 ## License
 
-MIT
+[FSL-1.1-ALv2](LICENSE.md) — Functional Source License, converting to Apache 2.0 after two years.

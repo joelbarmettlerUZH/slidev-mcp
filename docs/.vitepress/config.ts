@@ -71,7 +71,7 @@ export default defineConfig({
     socialLinks: [
       {
         icon: "github",
-        link: "https://github.com/joelbarmettler/slidev-mcp",
+        link: "https://github.com/joelbarmettlerUZH/slidev-mcp",
       },
     ],
   },

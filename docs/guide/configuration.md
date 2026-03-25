@@ -34,12 +34,11 @@ Slidev MCP is configured via environment variables. Set them in your `.env` file
 
 | Variable | Default | Description |
 |---|---|---|
-| `DOCKER_HOST` | — | Docker API endpoint. Set to `tcp://docker-socket-proxy:2375` in Docker Compose. |
-| `BUILDER_CONTAINER_NAME` | `builder` | Name of the builder container for `docker exec` |
+| `BUILDER_HOST` | `builder` | Builder HTTP server hostname |
+| `BUILDER_PORT` | `3000` | Builder HTTP server port |
 | `BUILD_TIMEOUT` | `120` | Maximum seconds per build |
 | `MAX_CONCURRENT_BUILDS` | `3` | Maximum simultaneous builds |
 | `SLIDES_DIR` | `/data/slides` | Directory for built slide files |
-| `BUILD_INBOX_DIR` | `/data/builds` | Staging area for build inputs/outputs |
 
 ### Lifecycle
 

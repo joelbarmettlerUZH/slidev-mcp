@@ -1,5 +1,5 @@
 ---
-description: All 13 pre-installed Slidev themes — 5 official and 8 community. Each is license-checked, version-pinned, and build-validated.
+description: All 24 pre-installed Slidev themes — 5 official and 19 community. Each is license-checked, version-pinned, and build-validated.
 ---
 
 <script setup>

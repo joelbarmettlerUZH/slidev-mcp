@@ -12,13 +12,13 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/joelbarmettler/slidev-mcp
+      link: https://github.com/joelbarmettlerUZH/slidev-mcp
 
 features:
   - title: Markdown-Powered
     details: Write presentations in plain markdown with Slidev syntax. Your AI assistant handles the rest.
-  - title: 13 Curated Themes
-    details: Choose from 13 curated themes — all license-checked, version-pinned, and build-validated.
+  - title: 24 Curated Themes
+    details: Choose from 24 curated themes — all license-checked, version-pinned, and build-validated.
   - title: Any MCP Client
     details: Works with Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, JetBrains, Zed, ChatGPT, and more.
   - title: Hosted & Shareable
