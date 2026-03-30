@@ -16,6 +16,8 @@ You don't need to interact with resources directly — your assistant uses them 
 |---|---|
 | `slidev://guide/syntax` | Slide separators, frontmatter, speaker notes, comments |
 | `slidev://guide/animations` | Click animations (`<v-click>`), transitions, motion |
+| `slidev://guide/layout` | Layout system guide |
+| `slidev://guide/theme-addon` | Theme and addon authoring guide |
 | `slidev://builtin/components` | Built-in components reference |
 | `slidev://builtin/layouts` | Built-in layout reference (cover, two-cols, image, etc.) |
 

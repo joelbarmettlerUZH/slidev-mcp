@@ -1,5 +1,5 @@
 ---
-description: Known limitations of Slidev MCP — images, PDF export, live preview, and more.
+description: Known limitations of Slidev MCP — images, live preview, custom assets, and more.
 ---
 
 # Limitations
@@ -20,11 +20,21 @@ Slidev MCP is designed to be simple and secure. Some Slidev features are not ava
 
 | Feature | Why | Workaround |
 |---|---|---|
-| **PDF export** | Only static HTML is generated | Use your browser's print-to-PDF on the slide URL |
 | **Live preview** | Each change requires a full build (7-30s) | Iterate by asking your assistant to update specific slides |
 | **Presenter mode** | Not included in the static build | View slides directly in the browser |
 | **Custom CSS/JS files** | No file upload support | Use inline `<style>` and `<script setup>` blocks in markdown |
 | **Custom fonts** | No file upload support | Use web fonts via URL imports in `<style>` blocks |
+
+## Export
+
+PDF export and slide screenshots are fully supported:
+
+| Feature | Tool | Notes |
+|---|---|---|
+| **PDF export** | `export_slides` | Server-side Playwright rendering; returns a download URL |
+| **Slide screenshots** | `screenshot_slides` | Returns one PNG per slide for visual review |
+
+Both tools require the presentation to have been created in the current session.
 
 ## Limits
 

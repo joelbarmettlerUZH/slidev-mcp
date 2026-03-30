@@ -4,7 +4,7 @@ description: Reference documentation for all Slidev MCP tools.
 
 # Tools
 
-Slidev MCP provides six tools. You don't call them directly &mdash; your AI assistant uses them behind the scenes. This page documents their behavior for reference.
+Slidev MCP provides 8 tools. You don't call them directly &mdash; your AI assistant uses them behind the scenes. This page documents their behavior for reference.
 
 ## render_slides
 
@@ -17,6 +17,7 @@ Render a Slidev presentation from markdown and return its hosted URL.
 | `markdown` | `string` | Yes | Full Slidev markdown including frontmatter |
 | `theme` | `string` | Yes | Theme name (e.g. `seriph`, `default`, `apple-basic`) |
 | `uuid` | `string \| null` | No | UUID of an existing presentation to update. Omit to create a new one. |
+| `color_schema` | `string` | No | Color scheme: `light` (default), `dark`, or `auto`. Controls whether slides render in light or dark mode. |
 
 ### Returns
 
@@ -27,6 +28,8 @@ Render a Slidev presentation from markdown and return its hosted URL.
   "build_time_seconds": 7.42
 }
 ```
+
+A base64-encoded PNG preview image is also returned as an image content block (visible on clients that support image rendering).
 
 ### Errors
 
@@ -47,6 +50,66 @@ Render a Slidev presentation from markdown and return its hosted URL.
 - The `theme` parameter is validated against the [installed themes](/reference/themes). Only pre-installed themes are allowed.
 - When `uuid` is provided, the presentation is updated in-place. The URL stays the same.
 - UUIDs are tied to your session. Once you disconnect, your presentations become immutable.
+
+## export_slides
+
+Export a presentation as a downloadable PDF.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `uuid` | `string` | Yes | UUID of the presentation to export. Must be from the current session. |
+
+### Returns
+
+```json
+{
+  "pdf_url": "https://mcp.slidev-mcp.org/slides/abc123-def456/slidev-exported.pdf",
+  "uuid": "abc123-def456",
+  "export_time_seconds": 12.3
+}
+```
+
+### Errors
+
+| Code | Description |
+|---|---|
+| `uuid_foreign` | UUID does not belong to this session |
+| `not_found` | Slide or markdown version not found |
+| `export_failed` | PDF export failed (includes error details) |
+
+### Notes
+
+- The presentation must have been created in the current session.
+- PDF export uses Playwright to render slides server-side, so the result matches what you see in the browser.
+
+## screenshot_slides
+
+Render all slides as PNG images and return them for visual review.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `uuid` | `string` | Yes | UUID of the presentation to screenshot. |
+
+### Returns
+
+One PNG image per slide, returned as image content blocks. Use this to visually review a presentation and give specific feedback on individual slides.
+
+### Errors
+
+| Code | Description |
+|---|---|
+| `uuid_foreign` | UUID does not belong to this session |
+| `not_found` | Slide or markdown version not found |
+| `export_failed` | Screenshot rendering failed |
+
+### Notes
+
+- The presentation must have been created in the current session.
+- Returns one image per slide, so multi-model AI clients can see exactly what each slide looks like.
 
 ## list_session_slides
 
