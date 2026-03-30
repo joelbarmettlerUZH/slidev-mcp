@@ -98,15 +98,16 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         run: |
           mkdir -p backup
-          scp "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/pre-deploy-backup/db-*.sql.gz" backup/db-backup.sql.gz
+          scp "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/pre-deploy-backup/db-*.sql.gz" backup/
 
       - name: Encrypt backup
         if: steps.check.outputs.skip != 'true'
         run: |
+          PG_DUMP=$(ls -t backup/db-*.sql.gz | head -1)
           echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
             --symmetric --cipher-algo AES256 \
-            -o backup/db-backup.sql.gz.gpg backup/db-backup.sql.gz
-          rm backup/db-backup.sql.gz
+            -o backup/db-backup.sql.gz.gpg "$PG_DUMP"
+          rm backup/db-*.sql.gz
 
       - name: Upload encrypted backup artifact
         if: steps.check.outputs.skip != 'true'
