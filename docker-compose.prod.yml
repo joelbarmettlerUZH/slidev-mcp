@@ -13,6 +13,7 @@ services:
     networks: [web, internal, isolated]
     environment:
       DOMAIN: ${DOMAIN}
+      SLIDES_DOMAIN: ${SLIDES_DOMAIN:-}
       DATABASE_URL: postgresql+asyncpg://slidev:${POSTGRES_PASSWORD}@postgres:5432/slidev
       SERVER_TRANSPORT: streamable-http
       SERVER_HOST: "0.0.0.0"
