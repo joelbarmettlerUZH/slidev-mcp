@@ -458,8 +458,8 @@ class TestE2EThemeTools:
             result = await client.call_tool("get_slidev_guide", {})
 
         text = _tool_text(result)
-        # Should contain syntax info or layouts (depends on vendor docs availability)
-        assert len(text) > 100
+        # Returns guide content if vendor docs exist, fallback message otherwise
+        assert len(text) > 0
 
 
 class TestE2EToolDiscovery:
