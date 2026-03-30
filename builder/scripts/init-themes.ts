@@ -35,17 +35,46 @@ async function main() {
     // Use per-theme Slidev version if specified, otherwise use the default
     const slidevVersion = entry.slidev_cli_version || config.slidev_cli_version;
 
-    // package.json — pinned @slidev/cli + pinned theme + any extras
+    // package.json — pinned @slidev/cli + pinned theme + singlefile plugin + any extras
     const pkg = {
       name: `slidev-theme-project-${name}`,
       private: true,
       dependencies: {
         "@slidev/cli": slidevVersion,
         [entry.package]: entry.version,
+        "vite-plugin-singlefile": "2.3.2",
         ...(entry.extra_dependencies || {}),
       },
     };
     await writeFile(join(dir, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
+
+    // vite.config.ts — enable single-file output (inline all JS/CSS into index.html)
+    // Slidev sets manualChunks which conflicts with singlefile's inlineDynamicImports.
+    // A configResolved hook removes manualChunks after all config merges.
+    const viteConfig = `import { defineConfig } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
+
+export default defineConfig({
+  plugins: [
+    viteSingleFile({ useRecommendedBuildConfig: true }),
+    {
+      name: "force-no-manual-chunks",
+      enforce: "post" as const,
+      configResolved(config) {
+        const output = config.build?.rollupOptions?.output;
+        if (output) {
+          if (Array.isArray(output)) {
+            output.forEach((o: any) => { delete o.manualChunks; });
+          } else {
+            delete (output as any).manualChunks;
+          }
+        }
+      },
+    },
+  ],
+});
+`;
+    await writeFile(join(dir, "vite.config.ts"), viteConfig);
 
     // slides.md — minimal placeholder for validation builds
     const slides = [

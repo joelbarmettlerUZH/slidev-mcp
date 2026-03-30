@@ -228,23 +228,33 @@ _VIEWER_HTML = """\
 
     const app = new App({ name: "Slidev Viewer", version: "1.0.0" });
 
-    app.ontoolresult = ({ content }) => {
+    app.ontoolresult = async ({ content }) => {
       const text = content?.find(c => c.type === "text");
       if (!text) return;
       let data;
       try { data = JSON.parse(text.text); } catch { return; }
       if (!data.url) return;
 
-      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("loading").textContent = "Loading slides\\u2026";
 
-      const viewer = document.getElementById("viewer");
-      viewer.classList.remove("hidden");
-      viewer.style.flex = "1";
-      viewer.style.display = "flex";
-      viewer.style.flexDirection = "column";
-      document.querySelector(".frame-wrapper").style.flex = "1";
+      try {
+        const resp = await fetch(data.url);
+        const html = await resp.text();
 
-      document.getElementById("slides-frame").src = data.url;
+        document.getElementById("loading").classList.add("hidden");
+
+        const viewer = document.getElementById("viewer");
+        viewer.classList.remove("hidden");
+        viewer.style.flex = "1";
+        viewer.style.display = "flex";
+        viewer.style.flexDirection = "column";
+        document.querySelector(".frame-wrapper").style.flex = "1";
+
+        document.getElementById("slides-frame").srcdoc = html;
+      } catch (err) {
+        document.getElementById("loading").textContent =
+          "Could not load slides inline. Open in new tab instead.";
+      }
 
       const info = document.getElementById("info");
       info.classList.remove("hidden");
@@ -265,7 +275,7 @@ _VIEWER_HTML = """\
     app=AppConfig(
         csp=ResourceCSP(
             resource_domains=["https://unpkg.com"],
-            frame_domains=["https://slides.slidev-mcp.org"],
+            connect_domains=["https://slides.slidev-mcp.org"],
         ),
     ),
 )
