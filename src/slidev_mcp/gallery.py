@@ -286,6 +286,7 @@ def build_gallery_html() -> str:
   <meta name="color-scheme" content="light dark">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: auto; overflow: visible; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                    Helvetica, Arial, sans-serif;
@@ -345,6 +346,8 @@ def build_gallery_html() -> str:
     function renderThemes(themeList) {
       const grid = document.getElementById("grid");
       grid.innerHTML = "";
+      // Set body min-height to 0 so ResizeObserver reports actual content height
+      document.body.style.minHeight = "0";
       for (const t of themeList) {
         const card = document.createElement("div");
         card.className = "card";
@@ -407,6 +410,12 @@ def build_gallery_html() -> str:
       } else {
         renderThemes(allThemes);
       }
+
+      // Force ResizeObserver to re-measure after DOM update.
+      // Without this, the host iframe may retain a stale height.
+      requestAnimationFrame(() => {
+        document.body.style.height = "auto";
+      });
     };
 
     await app.connect();
