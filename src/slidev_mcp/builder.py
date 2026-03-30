@@ -13,11 +13,33 @@ MAX_MARKDOWN_SIZE = 1_000_000  # 1 MB
 
 
 class BuildResult:
-    def __init__(self, uuid: str, url: str, build_time_seconds: float, html: str = "") -> None:
+    def __init__(
+        self,
+        uuid: str,
+        url: str,
+        build_time_seconds: float,
+        html: str = "",
+        preview_base64: str = "",
+    ) -> None:
         self.uuid = uuid
         self.url = url
         self.build_time_seconds = build_time_seconds
         self.html = html
+        self.preview_base64 = preview_base64
+
+
+class ExportResult:
+    def __init__(
+        self,
+        uuid: str,
+        export_time_seconds: float,
+        url: str = "",
+        images_base64: list[str] | None = None,
+    ) -> None:
+        self.uuid = uuid
+        self.url = url
+        self.export_time_seconds = export_time_seconds
+        self.images_base64 = images_base64 or []
 
 
 class BuildOrchestrator:
@@ -72,7 +94,53 @@ class BuildOrchestrator:
             extra={"uuid": uuid, "theme": theme, "duration": elapsed},
         )
         html = data.get("html", "")
-        return BuildResult(uuid=uuid, url=url, build_time_seconds=elapsed, html=html)
+        preview_base64 = data.get("preview_base64", "")
+        return BuildResult(
+            uuid=uuid, url=url, build_time_seconds=elapsed, html=html, preview_base64=preview_base64
+        )
+
+    async def export(self, markdown: str, theme: str, uuid: str, fmt: str = "pdf") -> ExportResult:
+        """Export a slide deck as PDF or PNG screenshots."""
+        self._validate_theme(theme)
+
+        try:
+            resp = await self._client.post(
+                "/export",
+                json={
+                    "markdown": markdown,
+                    "theme": theme,
+                    "uuid": uuid,
+                    "format": fmt,
+                },
+                timeout=httpx.Timeout(180, connect=10),
+            )
+        except httpx.TimeoutException:
+            raise BuildTimeout(180) from None
+
+        if resp.status_code != 200:
+            data = resp.json()
+            error_code = data.get("error", "export_failed")
+            details = data.get("details", "Unknown error")
+            raise BuildFailed(f"[{error_code}] {details}")
+
+        data = resp.json()
+        elapsed = data.get("export_time_seconds", 0)
+        logger.info(
+            "Export completed",
+            extra={"uuid": uuid, "format": fmt, "duration": elapsed},
+        )
+
+        if fmt == "png":
+            return ExportResult(
+                uuid=uuid,
+                export_time_seconds=elapsed,
+                images_base64=data.get("images_base64", []),
+            )
+
+        slides_host = self._settings.slides_domain or self._settings.domain
+        filename = data.get("filename", "slides-export.pdf")
+        url = f"https://{slides_host}/slides/{uuid}/{filename}"
+        return ExportResult(uuid=uuid, url=url, export_time_seconds=elapsed)
 
     async def close(self) -> None:
         await self._client.aclose()

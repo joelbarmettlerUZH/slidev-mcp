@@ -13,6 +13,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.apps import AppConfig, ResourceCSP
 from fastmcp.server.lifespan import lifespan
 from fastmcp.tools import ToolResult
+from mcp import types as mcp_types
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -178,40 +179,59 @@ _VIEWER_HTML = """\
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                    Helvetica, Arial, sans-serif;
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 16px;
-      width: 100%; min-height: 140px;
-      background: transparent; padding: 20px;
+      width: 100%; background: transparent; padding: 12px;
     }
-    .loading { opacity: 0.5; font-size: 14px; }
-    .card { display: none; text-align: center; width: 100%; max-width: 480px; }
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 120px; opacity: 0.5; font-size: 14px;
+    }
+    .result { display: none; width: 100%; max-width: 640px; }
+    .preview {
+      width: 100%; border-radius: 8px; overflow: hidden;
+      border: 1px solid rgba(128,128,128,0.2);
+      cursor: pointer; position: relative;
+    }
+    .preview img {
+      width: 100%; display: block;
+    }
+    .preview .overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.4); opacity: 0;
+      transition: opacity 0.2s; color: #fff;
+      font-size: 18px; font-weight: 600;
+    }
+    .preview:hover .overlay { opacity: 1; }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; gap: 12px;
+    }
     .open-btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 14px 32px; margin-bottom: 12px;
+      padding: 10px 24px;
       background: #2563eb; color: #fff;
-      border: none; border-radius: 10px;
-      font-size: 16px; font-weight: 600;
+      border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600;
       cursor: pointer; transition: background 0.2s;
-      text-decoration: none;
     }
     .open-btn:hover { background: #1d4ed8; }
-    .open-btn svg { width: 18px; height: 18px; fill: currentColor; }
-    .meta { font-size: 13px; opacity: 0.5; }
-    .meta span + span::before { content: "  ·  "; }
-    .url {
-      display: block; margin-top: 8px;
-      font-size: 12px; font-family: monospace;
-      opacity: 0.4; word-break: break-all;
-    }
+    .meta { font-size: 12px; opacity: 0.45; }
+    .meta span + span::before { content: " · "; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <div id="loading" class="loading">Building slides&hellip;</div>
-  <div id="card" class="card">
-    <button id="open-btn" class="open-btn">
-      Open Presentation &#x2197;
-    </button>
-    <div id="meta" class="meta"></div>
-    <span id="url" class="url"></span>
+  <div id="result" class="result">
+    <div id="preview" class="preview hidden">
+      <img id="preview-img" alt="Slide preview">
+      <div class="overlay">Open Presentation &#x2197;</div>
+    </div>
+    <div class="bar">
+      <button id="open-btn" class="open-btn">
+        Open Presentation &#x2197;
+      </button>
+      <div id="meta" class="meta"></div>
+    </div>
   </div>
   <script type="module">
     import { App } from
@@ -222,6 +242,8 @@ _VIEWER_HTML = """\
 
     app.ontoolresult = ({ content }) => {
       const text = content?.find(c => c.type === "text");
+      const img = content?.find(c => c.type === "image");
+
       if (!text) return;
       let data;
       try { data = JSON.parse(text.text); } catch { return; }
@@ -229,17 +251,25 @@ _VIEWER_HTML = """\
 
       slideUrl = data.url;
       document.getElementById("loading").style.display = "none";
-      document.getElementById("card").style.display = "block";
+      document.getElementById("result").style.display = "block";
+
+      if (img) {
+        const preview = document.getElementById("preview");
+        preview.classList.remove("hidden");
+        const imgEl = document.getElementById("preview-img");
+        imgEl.src = "data:" + img.mimeType + ";base64," + img.data;
+      }
+
       document.getElementById("meta").innerHTML =
-        `<span>${data.uuid.slice(0, 8)}</span>`
-        + `<span>Built in ${data.build_time_seconds.toFixed(1)}s</span>`;
-      document.getElementById("url").textContent = data.url;
+        "<span>" + data.uuid.slice(0, 8) + "</span>"
+        + "<span>Built in " + data.build_time_seconds.toFixed(1) + "s</span>";
     };
 
     document.getElementById("open-btn").addEventListener("click", () => {
-      if (slideUrl) {
-        app.openLink({ uri: slideUrl });
-      }
+      if (slideUrl) app.openLink({ uri: slideUrl });
+    });
+    document.getElementById("preview").addEventListener("click", () => {
+      if (slideUrl) app.openLink({ uri: slideUrl });
     });
 
     await app.connect();
@@ -397,7 +427,13 @@ async def render_slides(
                 "success": True,
             },
         )
-        return ToolResult(content=json.dumps(result))
+        preview = result.pop("preview_base64", "")
+        content: list = [
+            mcp_types.TextContent(type="text", text=json.dumps(result)),
+        ]
+        if preview:
+            content.append(mcp_types.ImageContent(type="image", data=preview, mimeType="image/png"))
+        return ToolResult(content=content)
     except SlidevMcpError as e:
         logger.warning(
             "render_slides failed: %s",
@@ -570,6 +606,126 @@ async def get_slidev_guide(ctx: Context) -> str:
     if parts:
         return "\n".join(parts)
     return "Slidev guide not available."
+
+
+@mcp.tool(
+    annotations={
+        "title": "Export Slides as PDF",
+        "readOnlyHint": False,
+        "openWorldHint": False,
+    },
+)
+async def export_slides(
+    uuid: Annotated[
+        str,
+        "UUID of the presentation to export. Must be from the current session.",
+    ],
+    ctx: Context = None,
+) -> ToolResult:
+    """Export a presentation as a downloadable PDF.
+
+    The presentation must have been created in the current session.
+    Returns a URL to download the PDF.
+    """
+    lc = ctx.lifespan_context
+    session_id = ctx.session_id or ctx.client_id or "unknown"
+    builder = lc["builder"]
+    session_map = lc["session_map"]
+
+    # Verify UUID ownership
+    if not session_map.owns(uuid, session_id):
+        raise ValueError("[uuid_foreign] UUID does not belong to this session")
+
+    # Get latest markdown and theme from DB
+    async with lc["db_session_factory"]() as session:
+        slide = await session.get(Slide, uuid)
+        if slide is None:
+            raise ValueError("[not_found] Slide not found")
+
+        latest_version = await session.scalar(
+            select(SlideVersion.markdown)
+            .where(SlideVersion.slide_uuid == uuid)
+            .order_by(SlideVersion.version.desc())
+            .limit(1)
+        )
+
+    if not latest_version:
+        raise ValueError("[not_found] No markdown version found for slide")
+
+    try:
+        result = await builder.export(latest_version, slide.theme, uuid)
+        return ToolResult(
+            content=json.dumps(
+                {
+                    "pdf_url": result.url,
+                    "uuid": result.uuid,
+                    "export_time_seconds": result.export_time_seconds,
+                }
+            )
+        )
+    except SlidevMcpError as e:
+        raise ValueError(f"[{e.code}] {e.message}") from None
+
+
+@mcp.tool(
+    annotations={
+        "title": "Screenshot Slides",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+)
+async def screenshot_slides(
+    uuid: Annotated[
+        str,
+        "UUID of the presentation to screenshot.",
+    ],
+    ctx: Context = None,
+) -> ToolResult:
+    """Render all slides as PNG images and return them.
+
+    Use this to visually review a presentation. Returns one image per
+    slide so you can see exactly what each slide looks like and give
+    specific feedback.
+    """
+    lc = ctx.lifespan_context
+    session_id = ctx.session_id or ctx.client_id or "unknown"
+    builder = lc["builder"]
+    session_map = lc["session_map"]
+
+    if not session_map.owns(uuid, session_id):
+        raise ValueError("[uuid_foreign] UUID does not belong to this session")
+
+    async with lc["db_session_factory"]() as session:
+        slide = await session.get(Slide, uuid)
+        if slide is None:
+            raise ValueError("[not_found] Slide not found")
+
+        latest_version = await session.scalar(
+            select(SlideVersion.markdown)
+            .where(SlideVersion.slide_uuid == uuid)
+            .order_by(SlideVersion.version.desc())
+            .limit(1)
+        )
+
+    if not latest_version:
+        raise ValueError("[not_found] No markdown version found")
+
+    try:
+        result = await builder.export(latest_version, slide.theme, uuid, fmt="png")
+        content: list = []
+        for img_b64 in result.images_base64:
+            content.append(
+                mcp_types.ImageContent(
+                    type="image",
+                    data=img_b64,
+                    mimeType="image/png",
+                )
+            )
+        if not content:
+            return ToolResult(content="No screenshots generated.")
+        return ToolResult(content=content)
+    except SlidevMcpError as e:
+        raise ValueError(f"[{e.code}] {e.message}") from None
 
 
 @mcp.resource("slides://session")

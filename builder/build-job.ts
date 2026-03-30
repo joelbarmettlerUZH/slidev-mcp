@@ -13,6 +13,7 @@ export interface BuildResult {
   uuid: string;
   build_time_seconds: number;
   html: string;
+  preview_base64: string;
 }
 
 class BuildError extends Error {
@@ -138,10 +139,38 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
       .replace(/<link[^>]*href=["'][^"']*fonts\.googleapis\.com[^"']*["'][^>]*>/gi, "")
       .replace(/<link[^>]*href=["'][^"']*cdn\.jsdelivr\.net[^"']*["'][^>]*>/gi, "");
 
+    // Generate PNG preview of the first slide
+    let preview_base64 = "";
+    try {
+      const previewOut = join(distDir, "preview");
+      const exportProc = Bun.spawn(
+        [
+          "bunx", "slidev", "export",
+          "--format", "png",
+          "--range", "1",
+          "--output", previewOut,
+          "--timeout", "30000",
+        ],
+        { cwd: workDir, stdout: "pipe", stderr: "pipe" }
+      );
+      const exportCode = await exportProc.exited;
+      if (exportCode === 0) {
+        // Slidev exports PNGs into {output}/{num}.png
+        const pngPath = join(previewOut, "1.png");
+        if (existsSync(pngPath)) {
+          const pngData = await readFile(pngPath);
+          preview_base64 = Buffer.from(pngData).toString("base64");
+        }
+      }
+    } catch {
+      // Preview generation is best-effort — don't fail the build
+    }
+
     return {
       uuid,
       build_time_seconds: Math.round(elapsed * 100) / 100,
       html,
+      preview_base64,
     };
   } finally {
     // Clean up work directory

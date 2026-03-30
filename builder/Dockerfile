@@ -1,6 +1,14 @@
 FROM oven/bun:latest
 
-# Create non-root user FIRST — avoids expensive chown of node_modules later
+# Install Playwright system dependencies as root (Chromium needs system libs)
+USER root
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends \
+      fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+RUN bunx playwright install chromium --with-deps
+
+# Create non-root user — avoids expensive chown of node_modules later
 RUN getent group 1000 || groupadd -g 1000 builder; \
     id -u 1000 2>/dev/null || useradd -u 1000 -g 1000 -m builder; \
     mkdir -p /app /data/builds /data/slides && \
@@ -26,7 +34,7 @@ RUN for dir in themes/*/; do \
     done; wait
 
 # Copy build scripts and server
-COPY --chown=1000:1000 build-job.ts server.ts ./
+COPY --chown=1000:1000 build-job.ts export-job.ts server.ts ./
 
 # Validate all themes — remove any that fail to build
 RUN bun run scripts/validate-themes.ts --remove-broken

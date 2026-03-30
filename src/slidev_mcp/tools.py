@@ -86,6 +86,7 @@ async def render_slides(
         "url": result.url,
         "uuid": result.uuid,
         "build_time_seconds": result.build_time_seconds,
+        "preview_base64": result.preview_base64,
     }
 
 

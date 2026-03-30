@@ -140,6 +140,17 @@ def _create_test_server(settings: Settings) -> FastMCP:
             parts.append(layouts)
         return "\n".join(parts) if parts else "Guide not available."
 
+    @server.tool
+    async def export_slides(uuid: str, ctx: Context) -> str:
+        """Export slides as PDF."""
+        url = f"https://test.example.com/slides/{uuid}/slides-export.pdf"
+        return json.dumps({"pdf_url": url, "uuid": uuid, "export_time_seconds": 5.0})
+
+    @server.tool
+    async def screenshot_slides(uuid: str, ctx: Context) -> str:
+        """Screenshot slides as PNGs."""
+        return json.dumps({"uuid": uuid, "screenshots": 1})
+
     # Register dynamic session resources
     @server.resource("slides://session")
     async def session_slides_resource(ctx: Context) -> str:
@@ -488,6 +499,8 @@ class TestE2EToolDiscovery:
             "browse_themes",
             "get_theme",
             "get_slidev_guide",
+            "export_slides",
+            "screenshot_slides",
         }
 
     async def test_render_slides_schema(self, test_server: FastMCP) -> None:

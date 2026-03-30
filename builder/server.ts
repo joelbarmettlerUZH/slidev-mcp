@@ -10,6 +10,7 @@
  */
 
 import { runBuild } from "./build-job";
+import { runExport } from "./export-job";
 
 const PORT = Number(process.env.BUILDER_PORT || 3000);
 
@@ -40,6 +41,32 @@ const server = Bun.serve({
         const status = err.status || 500;
         return Response.json(
           { error: err.code || "build_failed", details: err.message || String(err) },
+          { status }
+        );
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/export") {
+      try {
+        const body = await req.json();
+        const { markdown, theme, uuid, format } = body;
+
+        if (!markdown || !theme || !uuid) {
+          return Response.json(
+            { error: "missing_fields", details: "Required: markdown, theme, uuid" },
+            { status: 400 }
+          );
+        }
+
+        const result = await runExport({
+          markdown, theme, uuid,
+          format: format === "png" ? "png" : "pdf",
+        });
+        return Response.json(result);
+      } catch (err: any) {
+        const status = err.status || 500;
+        return Response.json(
+          { error: err.code || "export_failed", details: err.message || String(err) },
           { status }
         );
       }

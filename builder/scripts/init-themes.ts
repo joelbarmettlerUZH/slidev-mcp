@@ -43,6 +43,7 @@ async function main() {
         "@slidev/cli": slidevVersion,
         [entry.package]: entry.version,
         "vite-plugin-singlefile": "2.3.2",
+        "playwright-chromium": "1.52.0",
         ...(entry.extra_dependencies || {}),
       },
     };
