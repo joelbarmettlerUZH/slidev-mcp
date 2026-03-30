@@ -48,12 +48,18 @@ def _create_test_server(settings: Settings) -> FastMCP:
         builder = BuildOrchestrator(settings)
         builder._client = _mock_builder_http()
 
+        # Load resources for tool access
+        package_dir = Path(__file__).parent.parent / "src" / "slidev_mcp"
+        vendor_dir = Path(__file__).parent.parent / "vendor" / "slidev-docs" / "docs"
+        resources = load_resources(vendor_dir, package_dir)
+
         try:
             yield {
                 "settings": settings,
                 "db_session_factory": db_session_factory,
                 "session_map": session_map,
                 "builder": builder,
+                "resources": resources,
             }
         finally:
             await builder.close()
@@ -98,6 +104,34 @@ def _create_test_server(settings: Settings) -> FastMCP:
             db_session_factory=lc["db_session_factory"],
             settings=lc["settings"],
         )
+
+    @server.tool
+    async def browse_themes(ctx: Context) -> str:
+        """Browse available themes."""
+        lc = ctx.lifespan_context
+        resources = lc.get("resources", {})
+        return resources.get("slidev://themes/guide", "No theme data.")
+
+    @server.tool
+    async def get_theme(theme: str, ctx: Context) -> str:
+        """Get theme details."""
+        lc = ctx.lifespan_context
+        resources = lc.get("resources", {})
+        return resources.get(f"slidev://themes/{theme}", f"Theme '{theme}' not found.")
+
+    @server.tool
+    async def get_slidev_guide(ctx: Context) -> str:
+        """Get Slidev syntax guide."""
+        lc = ctx.lifespan_context
+        resources = lc.get("resources", {})
+        parts = []
+        syntax = resources.get("slidev://guide/syntax")
+        if syntax:
+            parts.append(syntax)
+        layouts = resources.get("slidev://builtin/layouts")
+        if layouts:
+            parts.append(layouts)
+        return "\n".join(parts) if parts else "Guide not available."
 
     # Register dynamic session resources
     @server.resource("slides://session")
@@ -396,13 +430,51 @@ class TestE2ESessionResources:
         assert "v2" in text
 
 
+class TestE2EThemeTools:
+    async def test_browse_themes(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool("browse_themes", {})
+
+        text = _tool_text(result)
+        assert "neocarbon" in text
+        assert "Dark Themes" in text
+
+    async def test_get_theme_existing(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool("get_theme", {"theme": "default"})
+
+        text = _tool_text(result)
+        assert "default" in text.lower()
+
+    async def test_get_theme_not_found(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool("get_theme", {"theme": "nonexistent"})
+
+        text = _tool_text(result)
+        assert "not found" in text
+
+    async def test_get_slidev_guide(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool("get_slidev_guide", {})
+
+        text = _tool_text(result)
+        # Should contain syntax info or layouts (depends on vendor docs availability)
+        assert len(text) > 100
+
+
 class TestE2EToolDiscovery:
     async def test_list_tools(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
             tools = await client.list_tools()
 
         tool_names = {t.name for t in tools}
-        assert tool_names == {"render_slides", "list_session_slides"}
+        assert tool_names == {
+            "render_slides",
+            "list_session_slides",
+            "browse_themes",
+            "get_theme",
+            "get_slidev_guide",
+        }
 
     async def test_render_slides_schema(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:

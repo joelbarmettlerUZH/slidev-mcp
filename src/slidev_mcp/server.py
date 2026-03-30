@@ -20,6 +20,7 @@ from slidev_mcp.builder import BuildOrchestrator
 from slidev_mcp.config import Settings
 from slidev_mcp.db import create_engine, create_session_factory, create_tables
 from slidev_mcp.errors import SlidevMcpError
+from slidev_mcp.gallery import build_gallery_html
 from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.resource_registry import load_resources
 from slidev_mcp.sessions import SessionMap
@@ -163,6 +164,7 @@ mcp._lifespan_context = None  # type: ignore[attr-defined]
 # ---------------------------------------------------------------------------
 
 _VIEWER_URI = "ui://slidev-mcp/viewer.html"
+_GALLERY_URI = "ui://slidev-mcp/gallery.html"
 
 _VIEWER_HTML = """\
 <!DOCTYPE html>
@@ -273,6 +275,25 @@ def slide_viewer() -> str:
     return _VIEWER_HTML
 
 
+@mcp.resource(
+    _GALLERY_URI,
+    app=AppConfig(
+        csp=ResourceCSP(
+            resource_domains=[
+                "https://unpkg.com",
+                "https://cdn.jsdelivr.net",
+                "https://raw.githubusercontent.com",
+                "https://gureckis.github.io",
+                "https://i.imgur.com",
+            ],
+        ),
+    ),
+)
+def theme_gallery() -> str:
+    """Visual theme gallery with preview images for all installed themes."""
+    return build_gallery_html()
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
     """Health endpoint: checks PG connection and semaphore availability."""
@@ -355,17 +376,15 @@ async def render_slides(
 ) -> ToolResult:
     """Render a Slidev presentation from markdown and return its hosted URL.
 
-    IMPORTANT: Before calling this tool, you MUST first read the resource
-    `slidev://themes/{theme_name}` for the theme you plan to use. Each theme
-    has unique layouts, components, and frontmatter options documented there.
-    Apply the theme's specific features (layouts, components, slots) in your
-    markdown to produce high-quality slides that match the theme's design.
+    IMPORTANT: Before calling this tool, you MUST call get_theme with the theme
+    name you plan to use. Each theme has unique layouts, components, and
+    frontmatter options. Apply the theme's specific features in your markdown
+    to produce high-quality slides that match the theme's design.
 
-    If the user has aesthetic preferences but no specific theme in mind, read
-    `slidev://themes/guide` first to pick the best matching theme, then read
-    the full theme resource before building.
+    If the user has aesthetic preferences but no specific theme in mind, call
+    browse_themes first to pick the best matching theme.
 
-    Also read `slidev://themes/installed` to see all available themes.
+    If you are unfamiliar with Slidev markdown syntax, call get_slidev_guide.
 
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
     """
@@ -432,6 +451,103 @@ async def list_session_slides(ctx: Context) -> SessionSlides:
     return SessionSlides(
         slides=[SlideInfo(**s) for s in result["slides"]],
     )
+
+
+@mcp.tool(
+    annotations={
+        "title": "Browse Themes",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+    app=AppConfig(resourceUri=_GALLERY_URI),
+)
+async def browse_themes(ctx: Context) -> str:
+    """Browse all available themes with descriptions, style categories, and recommendations.
+
+    Call this tool to see which themes are available and find the best match
+    for the user's presentation. Returns a guide organized by style (dark,
+    academic, modern, playful, etc.) with "best for" recommendations.
+
+    After picking a theme, call get_theme with the theme name to see its
+    full documentation (layouts, components, examples) before rendering.
+    """
+    lc = ctx.lifespan_context
+    resources = lc.get("resources", {})
+    guide = resources.get("slidev://themes/guide", "")
+    if guide:
+        return guide
+    # Fallback to installed themes list
+    return resources.get("slidev://themes/installed", "No theme data available.")
+
+
+@mcp.tool(
+    annotations={
+        "title": "Get Theme Details",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+)
+async def get_theme(
+    theme: Annotated[
+        str,
+        "Theme name (e.g. 'seriph', 'neocarbon', 'field-manual'). "
+        "Call browse_themes first to see available themes.",
+    ],
+    ctx: Context = None,
+) -> str:
+    """Get full documentation for a specific theme: layouts, components, and examples.
+
+    Call this BEFORE render_slides to learn the theme's unique features.
+    Each theme has different layouts, components, and frontmatter options.
+    Use what you learn here to produce high-quality, theme-specific slides.
+    """
+    lc = ctx.lifespan_context
+    resources = lc.get("resources", {})
+    uri = f"slidev://themes/{theme}"
+    content = resources.get(uri)
+    if content:
+        return content
+    # Check if theme exists at all
+    installed = resources.get("slidev://themes/installed", "")
+    if f"`{theme}`" in installed:
+        return f"Theme '{theme}' is installed but has no detailed documentation."
+    return f"Theme '{theme}' not found. Call browse_themes to see available themes."
+
+
+@mcp.tool(
+    annotations={
+        "title": "Get Slidev Guide",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+)
+async def get_slidev_guide(ctx: Context) -> str:
+    """Get the Slidev syntax guide: how to write slides in markdown.
+
+    Returns the official Slidev syntax reference (frontmatter, slide separators,
+    speaker notes, layouts, code blocks) plus built-in layout documentation and
+    an example deck. Call this once to learn how to write Slidev presentations.
+    """
+    lc = ctx.lifespan_context
+    resources = lc.get("resources", {})
+
+    parts = []
+
+    syntax = resources.get("slidev://guide/syntax")
+    if syntax:
+        parts.append("# Slidev Syntax Guide\n\n" + syntax)
+
+    layouts = resources.get("slidev://builtin/layouts")
+    if layouts:
+        parts.append("\n\n# Built-in Layouts\n\n" + layouts)
+
+    example = resources.get("slidev://examples/minimal")
+    if example:
+        parts.append("\n\n# Example Deck\n\n" + example)
+
+    if parts:
+        return "\n".join(parts)
+    return "Slidev guide not available."
 
 
 @mcp.resource("slides://session")
