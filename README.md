@@ -20,6 +20,10 @@
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-FSL--1.1--ALv2-blue?labelColor=212121" alt="License"></a>
 </p>
 
+<p align="center" width="100%">
+  <img src="docs/public/demo-readme.webp" width="80%" alt="Slidev MCP demo — creating a presentation with AI">
+</p>
+
 ---
 
 ## How It Works

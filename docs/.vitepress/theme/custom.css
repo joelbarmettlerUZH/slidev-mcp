@@ -1,0 +1,81 @@
+/* ── APK Protocol Font ── */
+@font-face {
+  font-family: "APK Protocol";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/APK-Protocol-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "APK Protocol";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/APK-Protocol-Semi-Bold.woff2") format("woff2");
+}
+
+/* ── Brand colors ── */
+:root {
+  --vp-c-brand-1: #c78704;
+  --vp-c-brand-2: #daa520;
+  --vp-c-brand-3: #a87000;
+  --vp-c-brand-soft: rgba(199, 135, 4, 0.14);
+  --vp-button-brand-bg: #c78704;
+  --vp-button-brand-hover-bg: #daa520;
+  --vp-button-brand-active-bg: #a87000;
+}
+
+.dark {
+  --vp-c-brand-1: #daa520;
+  --vp-c-brand-2: #e8bb44;
+  --vp-c-brand-3: #c78704;
+
+  /* Custom background colors */
+  --vp-c-bg: #262624;
+  --vp-c-bg-alt: #262624;
+  --vp-c-bg-elv: #30302e;
+  --vp-c-bg-soft: #30302e;
+}
+
+/* ── Hide VitePress home hero, features, and footer on home page ── */
+.VPHome .VPHero,
+.VPHome .VPFeatures {
+  display: none !important;
+}
+
+.VPHome + .VPFooter,
+.VPHome ~ .VPFooter,
+.is-home .VPFooter {
+  display: none !important;
+}
+
+/* Footer can be nested in various ways in VitePress */
+.Layout:has(.VPHome) .VPFooter {
+  display: none !important;
+}
+
+/* ── Strip VitePress default heading borders on home page ── */
+.VPHome .vp-doc h1,
+.VPHome .vp-doc h2,
+.VPHome .vp-doc h3,
+.VPHome .vp-doc h4,
+.VPHome .vp-doc h5,
+.VPHome .vp-doc h6 {
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ── Ensure home content is full-width ── */
+.VPHome .VPHomeContent {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+.VPHome .vp-doc {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+.VPHome .VPContent {
+  padding-top: 0 !important;
+}
