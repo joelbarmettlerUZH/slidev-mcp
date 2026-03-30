@@ -327,9 +327,7 @@ _VIEWER_HTML = """\
       border-color: rgba(128,128,128,0.15);
     }
     .btn svg { opacity: 0.5; flex-shrink: 0; }
-    .btn.copied {
-      border-color: rgba(34,197,94,0.5); color: #22c55e;
-    }
+    .btn.loading { opacity: 0.5; pointer-events: none; }
     .spacer { flex: 1; }
     .meta { font-size: 12px; opacity: 0.45; }
     .meta span + span::before { content: " · "; }
@@ -344,8 +342,8 @@ _VIEWER_HTML = """\
       <div class="overlay">Open Presentation &#x2197;</div>
     </div>
     <div class="bar">
-      <button id="open-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3zm-1-4l-1.41-1.41L13 12.17V4h-2v8.17L8.41 9.59L7 11l5 5z"/></svg> Open</button>
-      <button id="copy-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m0 16H8V7h11z"/></svg> Copy link</button>
+      <button id="open-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2zM14 3v2h3.59l-9.83 9.83l1.41 1.41L19 6.41V10h2V3z"/></svg> Open</button>
+      <button id="pdf-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5zm4-3H19v1h1.5V11H19v2h-1.5V7h3zM9 9.5h1v-1H9zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4zm10 5.5h1v-3h-1z"/></svg> Download PDF</button>
       <div class="spacer"></div>
       <div id="meta" class="meta"></div>
     </div>
@@ -356,6 +354,7 @@ _VIEWER_HTML = """\
 
     const app = new App({ name: "Slidev Viewer", version: "1.0.0" });
     let slideUrl = null;
+    let slideUuid = null;
 
     app.ontoolresult = ({ content }) => {
       const text = content?.find(c => c.type === "text");
@@ -367,6 +366,7 @@ _VIEWER_HTML = """\
       if (!data.url) return;
 
       slideUrl = data.url;
+      slideUuid = data.uuid;
       document.getElementById("loading").style.display = "none";
       document.getElementById("result").style.display = "block";
 
@@ -388,20 +388,27 @@ _VIEWER_HTML = """\
     document.getElementById("preview").addEventListener("click", () => {
       if (slideUrl) app.openLink({ url: slideUrl });
     });
-    document.getElementById("copy-btn").addEventListener("click", async () => {
-      if (!slideUrl) return;
-      const btn = document.getElementById("copy-btn");
+    document.getElementById("pdf-btn").addEventListener("click", async () => {
+      if (!slideUuid) return;
+      const btn = document.getElementById("pdf-btn");
+      btn.classList.add("loading");
+      btn.lastChild.textContent = " Exporting...";
       try {
-        await navigator.clipboard.writeText(slideUrl);
-        btn.textContent = "Copied!";
-        btn.classList.add("copied");
-        setTimeout(() => {
-          btn.textContent = "Copy link";
-          btn.classList.remove("copied");
-        }, 2000);
-      } catch {
-        btn.textContent = "Copy failed";
-        setTimeout(() => { btn.textContent = "Copy link"; }, 2000);
+        const result = await app.callServerTool({
+          name: "export_slides",
+          arguments: { uuid: slideUuid },
+        });
+        const text = result.content?.find(c => c.type === "text");
+        if (text) {
+          const data = JSON.parse(text.text);
+          if (data.pdf_url) app.openLink({ url: data.pdf_url });
+        }
+      } catch (err) {
+        btn.lastChild.textContent = " Export failed";
+        setTimeout(() => { btn.lastChild.textContent = " Download PDF"; }, 3000);
+      } finally {
+        btn.classList.remove("loading");
+        btn.lastChild.textContent = " Download PDF";
       }
     });
 
