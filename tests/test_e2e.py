@@ -106,11 +106,18 @@ def _create_test_server(settings: Settings) -> FastMCP:
         )
 
     @server.tool
-    async def browse_themes(ctx: Context) -> str:
-        """Browse available themes."""
+    async def list_themes(ctx: Context) -> str:
+        """List available themes."""
         lc = ctx.lifespan_context
         resources = lc.get("resources", {})
         return resources.get("slidev://themes/guide", "No theme data.")
+
+    @server.tool
+    async def browse_themes(themes: list[str] | None = None, ctx: Context = None) -> str:
+        """Browse available themes visually."""
+        import json as _json
+
+        return _json.dumps({"themes": themes})
 
     @server.tool
     async def get_theme(theme: str, ctx: Context) -> str:
@@ -431,13 +438,19 @@ class TestE2ESessionResources:
 
 
 class TestE2EThemeTools:
-    async def test_browse_themes(self, test_server: FastMCP) -> None:
+    async def test_browse_themes_all(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
             result = await client.call_tool("browse_themes", {})
 
-        text = _tool_text(result)
-        assert "neocarbon" in text
-        assert "Dark Themes" in text
+        data = json.loads(_tool_text(result))
+        assert data["themes"] is None
+
+    async def test_browse_themes_filtered(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool("browse_themes", {"themes": ["dracula", "neocarbon"]})
+
+        data = json.loads(_tool_text(result))
+        assert data["themes"] == ["dracula", "neocarbon"]
 
     async def test_get_theme_existing(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
@@ -471,6 +484,7 @@ class TestE2EToolDiscovery:
         assert tool_names == {
             "render_slides",
             "list_session_slides",
+            "list_themes",
             "browse_themes",
             "get_theme",
             "get_slidev_guide",

@@ -265,7 +265,7 @@ _VIEWER_HTML = """\
     app=AppConfig(
         csp=ResourceCSP(
             resource_domains=["https://unpkg.com"],
-            frame_domains=["https://mcp.slidev-mcp.org"],
+            frame_domains=["https://slides.slidev-mcp.org"],
         ),
     ),
 )
@@ -380,9 +380,7 @@ async def render_slides(
     frontmatter options. Apply the theme's specific features in your markdown
     to produce high-quality slides that match the theme's design.
 
-    If the user has aesthetic preferences but no specific theme in mind, call
-    browse_themes first to pick the best matching theme.
-
+    If the user has not specified a theme, call list_themes to pick one.
     If you are unfamiliar with Slidev markdown syntax, call get_slidev_guide.
 
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
@@ -454,29 +452,61 @@ async def list_session_slides(ctx: Context) -> SessionSlides:
 
 @mcp.tool(
     annotations={
-        "title": "Browse Themes",
+        "title": "List Themes",
         "readOnlyHint": True,
         "openWorldHint": False,
     },
-    app=AppConfig(resourceUri=_GALLERY_URI),
 )
-async def browse_themes(ctx: Context) -> str:
-    """Browse all available themes with descriptions, style categories, and recommendations.
+async def list_themes(ctx: Context) -> str:
+    """Get a list of all available themes with style descriptions and recommendations.
 
-    Call this tool to see which themes are available and find the best match
-    for the user's presentation. Returns a guide organized by style (dark,
-    academic, modern, playful, etc.) with "best for" recommendations.
+    Call this to decide which theme to use. Returns a guide organized by style
+    (dark, academic, modern, playful, etc.) with "best for" recommendations.
 
-    After picking a theme, call get_theme with the theme name to see its
+    After picking a theme, call get_theme with the theme name to read its
     full documentation (layouts, components, examples) before rendering.
+
+    This tool does NOT display anything to the user — it is for your own
+    reference when choosing a theme.
     """
     lc = ctx.lifespan_context
     resources = lc.get("resources", {})
     guide = resources.get("slidev://themes/guide", "")
     if guide:
         return guide
-    # Fallback to installed themes list
     return resources.get("slidev://themes/installed", "No theme data available.")
+
+
+@mcp.tool(
+    annotations={
+        "title": "Browse Themes",
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    },
+    app=AppConfig(resourceUri=_GALLERY_URI),
+)
+async def browse_themes(
+    themes: Annotated[
+        list[str] | None,
+        "Optional list of theme names to show (e.g. ['dracula', 'neocarbon', 'vibe']). "
+        "If omitted, all themes are shown. Use list_themes first to find matching "
+        "themes, then pass the filtered names here.",
+    ] = None,
+    ctx: Context = None,
+) -> ToolResult:
+    """Show the user a visual theme gallery with preview images.
+
+    ONLY call this when the user explicitly asks to SEE or BROWSE themes
+    visually (e.g. "show me the themes", "what do they look like", "let me
+    pick a theme"). This renders an interactive gallery in the user's UI.
+
+    To show a filtered subset (e.g. only dark themes), first call list_themes
+    to identify matching themes, then pass their names here.
+
+    Do NOT call this to decide which theme to use yourself — use list_themes
+    for that instead.
+    """
+    return ToolResult(content=json.dumps({"themes": themes}))
 
 
 @mcp.tool(
@@ -490,7 +520,10 @@ async def get_theme(
     theme: Annotated[
         str,
         "Theme name (e.g. 'seriph', 'neocarbon', 'field-manual'). "
-        "Call browse_themes first to see available themes.",
+        "Available themes: default, seriph, apple-basic, bricks, shibainu, "
+        "academic, cobalt, dracula, eloc, field-manual, frankfurt, geist, "
+        "neocarbon, neversink, nord, penguin, purplin, scholarly, "
+        "swiss-ai-hub, the-unnamed, unicorn, vibe, vuetiful, zhozhoba.",
     ],
     ctx: Context = None,
 ) -> str:
@@ -499,6 +532,9 @@ async def get_theme(
     Call this BEFORE render_slides to learn the theme's unique features.
     Each theme has different layouts, components, and frontmatter options.
     Use what you learn here to produce high-quality, theme-specific slides.
+
+    This is the primary tool for preparing to render slides. When the user
+    specifies a theme, call this directly — no need to call browse_themes.
     """
     lc = ctx.lifespan_context
     resources = lc.get("resources", {})

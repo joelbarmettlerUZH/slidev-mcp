@@ -165,6 +165,7 @@ jobs:
 
           # Server
           DOMAIN=${{ vars.DOMAIN || 'mcp.slidev-mcp.org' }}
+          SLIDES_DOMAIN=${{ vars.SLIDES_DOMAIN || 'slides.slidev-mcp.org' }}
           SERVER_TRANSPORT=streamable-http
           SERVER_HOST=0.0.0.0
           SERVER_PORT=8000

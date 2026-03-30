@@ -332,44 +332,47 @@ def build_gallery_html() -> str:
   </style>
 </head>
 <body>
-  <h1>Theme Gallery</h1>
+  <h1 id="title">Theme Gallery</h1>
   <div class="grid" id="grid"></div>
   <script type="module">
     import { App } from
       "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
 
-    const themes = """
+    const allThemes = """
         + themes_json
         + """;
 
-    const grid = document.getElementById("grid");
-    for (const t of themes) {
-      const card = document.createElement("div");
-      card.className = "card";
+    function renderThemes(themeList) {
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      for (const t of themeList) {
+        const card = document.createElement("div");
+        card.className = "card";
 
-      let previewHtml;
-      if (t.previews.length > 0) {
-        previewHtml = t.previews.map((url, i) =>
-          `<img src="${url}" alt="${t.name}" class="${i === 0 ? 'active' : ''}">`
+        let previewHtml;
+        if (t.previews.length > 0) {
+          previewHtml = t.previews.map((url, i) =>
+            `<img src="${url}" alt="${t.name}" class="${i === 0 ? 'active' : ''}">`
+          ).join("");
+        } else {
+          previewHtml = `<div class="no-preview">No preview</div>`;
+        }
+
+        const tagsHtml = (t.tags || []).map(tag =>
+          `<span class="tag">${tag}</span>`
         ).join("");
-      } else {
-        previewHtml = `<div class="no-preview">No preview</div>`;
+
+        card.innerHTML = `
+          <div class="preview" data-theme="${t.id}">${previewHtml}</div>
+          <div class="info">
+            <h2>${t.name}</h2>
+            <span class="id">${t.id}</span>
+            <p>${t.description}</p>
+            <div class="tags">${tagsHtml}</div>
+          </div>
+        `;
+        grid.appendChild(card);
       }
-
-      const tagsHtml = (t.tags || []).map(tag =>
-        `<span class="tag">${tag}</span>`
-      ).join("");
-
-      card.innerHTML = `
-        <div class="preview" data-theme="${t.id}">${previewHtml}</div>
-        <div class="info">
-          <h2>${t.name}</h2>
-          <span class="id">${t.id}</span>
-          <p>${t.description}</p>
-          <div class="tags">${tagsHtml}</div>
-        </div>
-      `;
-      grid.appendChild(card);
     }
 
     // Rotate preview images every 3 seconds
@@ -387,6 +390,25 @@ def build_gallery_html() -> str:
     }, 3000);
 
     const app = new App({ name: "Theme Gallery", version: "1.0.0" });
+
+    app.ontoolresult = ({ content }) => {
+      const text = content?.find(c => c.type === "text");
+      if (!text) { renderThemes(allThemes); return; }
+      let data;
+      try { data = JSON.parse(text.text); } catch { renderThemes(allThemes); return; }
+
+      const filter = data.themes;
+      if (filter && Array.isArray(filter) && filter.length > 0) {
+        const filterSet = new Set(filter.map(s => s.toLowerCase()));
+        const filtered = allThemes.filter(t => filterSet.has(t.id));
+        document.getElementById("title").textContent =
+          `Showing ${filtered.length} of ${allThemes.length} themes`;
+        renderThemes(filtered);
+      } else {
+        renderThemes(allThemes);
+      }
+    };
+
     await app.connect();
   </script>
 </body>
