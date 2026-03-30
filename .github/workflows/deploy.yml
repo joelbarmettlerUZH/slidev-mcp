@@ -156,7 +156,8 @@ jobs:
         env:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > ${DEPLOY_DIR}/.env.production << 'ENVEOF'
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > ${DEPLOY_DIR}/.env.production << ENVEOF
           # PostgreSQL
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
           DATABASE_URL=postgresql+asyncpg://slidev:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/slidev
@@ -170,7 +171,7 @@ jobs:
           BUILDER_PORT=3000
 
           # Docker images
-          GITHUB_REPOSITORY=${{ github.repository }}
+          GITHUB_REPOSITORY=${REPO_LOWER}
           IMAGE_TAG=latest
 
           # Traefik TLS
