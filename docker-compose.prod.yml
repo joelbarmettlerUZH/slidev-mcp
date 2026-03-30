@@ -9,7 +9,7 @@ x-logging: &default-logging
 
 services:
   mcp-server:
-    image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettler/slidev-mcp}/slidev-mcp-server:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettleruzh/slidev-mcp}/slidev-mcp-server:${IMAGE_TAG:-latest}
     networks: [web, internal, isolated]
     environment:
       DOMAIN: ${DOMAIN}
@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
 
   builder:
-    image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettler/slidev-mcp}/slidev-mcp-builder:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettleruzh/slidev-mcp}/slidev-mcp-builder:${IMAGE_TAG:-latest}
     container_name: builder
     networks: [isolated]
     volumes:

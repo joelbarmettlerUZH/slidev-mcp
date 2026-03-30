@@ -76,17 +76,32 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Check if stack is running
+        id: check
+        run: |
+          RUNNING=$(ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }} && docker compose --env-file .env.production -f docker-compose.prod.yml ps --format json 2>/dev/null | head -1" || echo "")
+          if [ -z "$RUNNING" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No running stack found — skipping pre-deploy backup (first deploy)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run pre-deploy backup on server
+        if: steps.check.outputs.skip != 'true'
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cd ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }} && bash scripts/backup.sh /tmp/pre-deploy-backup docker-compose.prod.yml .env.production"
 
       - name: Download PG backup from server
+        if: steps.check.outputs.skip != 'true'
         run: |
           mkdir -p backup
           scp "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/pre-deploy-backup/db-*.sql.gz" backup/db-backup.sql.gz
 
       - name: Encrypt backup
+        if: steps.check.outputs.skip != 'true'
         run: |
           echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
             --symmetric --cipher-algo AES256 \
@@ -94,6 +109,7 @@ jobs:
           rm backup/db-backup.sql.gz
 
       - name: Upload encrypted backup artifact
+        if: steps.check.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: db-backup-${{ github.run_id }}
@@ -146,7 +162,7 @@ jobs:
           DATABASE_URL=postgresql+asyncpg://slidev:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/slidev
 
           # Server
-          DOMAIN=${{ vars.DOMAIN || 'slidev-mcp.org' }}
+          DOMAIN=${{ vars.DOMAIN || 'mcp.slidev-mcp.org' }}
           SERVER_TRANSPORT=streamable-http
           SERVER_HOST=0.0.0.0
           SERVER_PORT=8000

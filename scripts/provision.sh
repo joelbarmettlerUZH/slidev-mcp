@@ -30,7 +30,7 @@ fi
 # ---------------------------------------------------------------------------
 # Configuration — change these if needed
 # ---------------------------------------------------------------------------
-FLAVOR="a4-ram16-disk50-perf1"
+FLAVOR="a4-ram8-disk50-perf1"
 IMAGE="Ubuntu 24.04 LTS Noble Numbat"
 NETWORK="ext-net1"
 SECGROUP="slidev-mcp"
