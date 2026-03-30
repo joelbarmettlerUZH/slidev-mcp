@@ -209,23 +209,6 @@ _VIEWER_HTML = """\
       justify-content: center; opacity: 0.5;
       font-size: 14px;
     }
-    .fallback {
-      flex: 1; display: flex; align-items: center;
-      justify-content: center;
-    }
-    .fallback a {
-      display: flex; align-items: center; justify-content: center;
-      width: 100%; height: 100%; min-height: 200px;
-      border-radius: 8px;
-      border: 2px dashed rgba(128,128,128,0.3);
-      text-decoration: none; color: inherit;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .fallback a:hover {
-      border-color: rgba(128,128,128,0.6);
-      background: rgba(128,128,128,0.05);
-    }
-    .open-label { font-size: 16px; opacity: 0.6; }
     .hidden { display: none; }
   </style>
 </head>
@@ -233,14 +216,8 @@ _VIEWER_HTML = """\
   <div class="container">
     <div id="loading" class="loading">Building slides&hellip;</div>
     <div id="viewer" class="hidden">
-      <div class="frame-wrapper" id="frame-wrapper">
-        <iframe id="slides-frame" sandbox="allow-scripts allow-same-origin"
-                loading="lazy"></iframe>
-      </div>
-      <div class="fallback hidden" id="fallback">
-        <a id="fallback-link" href="#" target="_blank" rel="noopener">
-          <div class="open-label">Click to open presentation &rarr;</div>
-        </a>
+      <div class="frame-wrapper">
+        <iframe id="slides-frame" loading="lazy"></iframe>
       </div>
     </div>
     <div id="info" class="info hidden"></div>
@@ -265,30 +242,9 @@ _VIEWER_HTML = """\
       viewer.style.flex = "1";
       viewer.style.display = "flex";
       viewer.style.flexDirection = "column";
+      document.querySelector(".frame-wrapper").style.flex = "1";
 
-      const frameWrapper = document.getElementById("frame-wrapper");
-      const fallback = document.getElementById("fallback");
-      const frame = document.getElementById("slides-frame");
-
-      // Try loading in iframe, fall back to link if blocked
-      frameWrapper.style.flex = "1";
-      frame.src = data.url;
-
-      // Detect CSP/sandbox blocking after a short delay
-      setTimeout(() => {
-        try {
-          // If we can't access contentDocument and it's still blank,
-          // the iframe was likely blocked
-          const doc = frame.contentDocument || frame.contentWindow?.document;
-          const isEmpty = !doc || doc.body?.innerHTML === "";
-          if (isEmpty) throw new Error("blocked");
-        } catch {
-          frameWrapper.classList.add("hidden");
-          fallback.classList.remove("hidden");
-          fallback.style.flex = "1";
-          document.getElementById("fallback-link").href = data.url;
-        }
-      }, 2000);
+      document.getElementById("slides-frame").src = data.url;
 
       const info = document.getElementById("info");
       info.classList.remove("hidden");
@@ -309,7 +265,7 @@ _VIEWER_HTML = """\
     app=AppConfig(
         csp=ResourceCSP(
             resource_domains=["https://unpkg.com"],
-            frame_domains=["https://*"],
+            frame_domains=["https://mcp.slidev-mcp.org"],
         ),
     ),
 )
