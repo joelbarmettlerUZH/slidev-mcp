@@ -51,7 +51,7 @@ services:
     volumes:
       - slides-data:/data/slides
     user: "1000:1000"
-    mem_limit: 4g
+    mem_limit: 6g
     cpus: 2.0
     security_opt:
       - "no-new-privileges:true"
