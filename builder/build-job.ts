@@ -7,6 +7,7 @@ export interface BuildParams {
   theme: string;
   uuid: string;
   basePath: string;
+  colorSchema: string;
 }
 
 export interface BuildResult {
@@ -43,13 +44,14 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-function patchFrontmatter(markdown: string, theme: string): string {
+function patchFrontmatter(markdown: string, theme: string, colorSchema: string): string {
   const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
   const match = markdown.match(frontmatterRegex);
 
   const requiredFields: Record<string, string> = {
     theme: theme,
     routerMode: "hash",
+    colorSchema: colorSchema,
   };
 
   if (match) {
@@ -72,7 +74,7 @@ function patchFrontmatter(markdown: string, theme: string): string {
 }
 
 export async function runBuild(params: BuildParams): Promise<BuildResult> {
-  const { markdown, theme, uuid, basePath } = params;
+  const { markdown, theme, uuid, basePath, colorSchema } = params;
 
   // Locate the theme's project directory
   const themeDir = join("/app/themes", theme);
@@ -89,7 +91,7 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
     await copyDir(themeDir, workDir);
 
     // Patch theme + routerMode into frontmatter and write slides
-    const themedSlides = patchFrontmatter(markdown, theme);
+    const themedSlides = patchFrontmatter(markdown, theme, colorSchema);
     await writeFile(join(workDir, "slides.md"), themedSlides, "utf-8");
 
     // Symlink node_modules from the theme's own install

@@ -28,6 +28,10 @@ async def render_slides(
         str | None,
         Field(description="UUID to update existing slides, or omit for new"),
     ] = None,
+    color_schema: Annotated[
+        str,
+        Field(description="Color scheme: 'light', 'dark', or 'auto'"),
+    ] = "light",
     *,
     session_id: str,
     session_map: SessionMap,
@@ -58,7 +62,7 @@ async def render_slides(
             if existing is not None:
                 raise UuidSealed(uuid)
 
-    result = await builder.build(markdown, theme, uuid)
+    result = await builder.build(markdown, theme, uuid, color_schema=color_schema)
 
     # Update DB and session map
     async with db_session_factory() as session:

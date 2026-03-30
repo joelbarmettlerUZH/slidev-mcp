@@ -7,6 +7,7 @@ export interface ExportParams {
   theme: string;
   uuid: string;
   format: "pdf" | "png";
+  colorSchema: string;
 }
 
 export interface ExportResult {
@@ -44,26 +45,38 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-function patchFrontmatter(markdown: string, theme: string): string {
+function patchFrontmatter(markdown: string, theme: string, colorSchema: string): string {
   const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
   const match = markdown.match(frontmatterRegex);
+
+  const requiredFields: Record<string, string> = {
+    theme: theme,
+    colorSchema: colorSchema,
+  };
+
   if (match) {
     let frontmatter = match[1];
-    const themeRegex = /^theme:\s*.*$/m;
-    if (themeRegex.test(frontmatter)) {
-      frontmatter = frontmatter.replace(themeRegex, `theme: ${theme}`);
-    } else {
-      frontmatter = `theme: ${theme}\n${frontmatter}`;
+    for (const [key, value] of Object.entries(requiredFields)) {
+      const fieldRegex = new RegExp(`^${key}:\\s*.*$`, "m");
+      if (fieldRegex.test(frontmatter)) {
+        frontmatter = frontmatter.replace(fieldRegex, `${key}: ${value}`);
+      } else {
+        frontmatter = `${key}: ${value}\n${frontmatter}`;
+      }
     }
     return markdown.replace(frontmatterRegex, `---\n${frontmatter}\n---`);
   }
-  return `---\ntheme: ${theme}\n---\n\n${markdown}`;
+  const fields = Object.entries(requiredFields)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+  return `---\n${fields}\n---\n\n${markdown}`;
 }
 
 async function prepareWorkDir(
   theme: string,
   markdown: string,
   uuid: string,
+  colorSchema: string,
 ): Promise<string> {
   const themeDir = join("/app/themes", theme);
   if (!existsSync(themeDir)) {
@@ -73,7 +86,7 @@ async function prepareWorkDir(
   const workDir = join("/tmp/exports", uuid, "work");
   await copyDir(themeDir, workDir);
 
-  const themedSlides = patchFrontmatter(markdown, theme);
+  const themedSlides = patchFrontmatter(markdown, theme, colorSchema);
   await writeFile(join(workDir, "slides.md"), themedSlides, "utf-8");
 
   const nodeModulesSrc = join(themeDir, "node_modules");
@@ -86,11 +99,11 @@ async function prepareWorkDir(
 }
 
 export async function runExport(params: ExportParams): Promise<ExportResult> {
-  const { markdown, theme, uuid, format } = params;
+  const { markdown, theme, uuid, format, colorSchema } = params;
   const distDir = join("/data/slides", uuid);
   const start = Date.now();
 
-  const workDir = await prepareWorkDir(theme, markdown, uuid);
+  const workDir = await prepareWorkDir(theme, markdown, uuid, colorSchema);
 
   try {
     if (format === "pdf") {

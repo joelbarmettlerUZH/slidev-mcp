@@ -37,6 +37,11 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH", "RUF"]
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastmcp.dependencies.CurrentContext"]
 
+[tool.ruff.lint.per-file-ignores]
+# server.py contains inline HTML with long SVG paths in string literals
+"src/slidev_mcp/server.py" = ["E501"]
+"src/slidev_mcp/gallery.py" = ["E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["slidev_mcp"]
 

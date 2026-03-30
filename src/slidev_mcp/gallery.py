@@ -305,7 +305,7 @@ def build_gallery_html() -> str:
     }
     .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
     .preview {
-      aspect-ratio: 16/10; background: #111;
+      aspect-ratio: 16/9; background: #111;
       position: relative; overflow: hidden;
     }
     .preview img {

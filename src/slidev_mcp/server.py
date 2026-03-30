@@ -296,7 +296,8 @@ _VIEWER_HTML = """\
       cursor: pointer; position: relative;
     }
     .preview img {
-      width: 100%; display: block;
+      width: 100%; display: block; aspect-ratio: 16/9;
+      object-fit: cover;
     }
     .preview .overlay {
       position: absolute; inset: 0;
@@ -307,20 +308,29 @@ _VIEWER_HTML = """\
     }
     .preview:hover .overlay { opacity: 1; }
     .bar {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-top: 10px; gap: 12px;
+      display: flex; align-items: center;
+      margin-top: 10px; gap: 8px;
     }
-    .open-btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      height: 32px; padding: 0 12px; min-width: 4rem;
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 10px;
       background: transparent; color: inherit;
       border: 0.5px solid rgba(128,128,128,0.3);
-      border-radius: 6px;
-      font-size: 12px; font-weight: 600;
+      border-radius: 8px;
+      font-size: 14px;
       white-space: nowrap;
-      cursor: pointer; transition: background 0.1s;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
     }
-    .open-btn:hover { background: rgba(128,128,128,0.1); }
+    .btn:hover {
+      background: rgba(128,128,128,0.1);
+      border-color: rgba(128,128,128,0.15);
+    }
+    .btn svg { opacity: 0.5; flex-shrink: 0; }
+    .btn.copied {
+      border-color: rgba(34,197,94,0.5); color: #22c55e;
+    }
+    .spacer { flex: 1; }
     .meta { font-size: 12px; opacity: 0.45; }
     .meta span + span::before { content: " · "; }
     .hidden { display: none; }
@@ -334,9 +344,9 @@ _VIEWER_HTML = """\
       <div class="overlay">Open Presentation &#x2197;</div>
     </div>
     <div class="bar">
-      <button id="open-btn" class="open-btn">
-        Open Presentation &#x2197;
-      </button>
+      <button id="open-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3zm-1-4l-1.41-1.41L13 12.17V4h-2v8.17L8.41 9.59L7 11l5 5z"/></svg> Open</button>
+      <button id="copy-btn" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m0 16H8V7h11z"/></svg> Copy link</button>
+      <div class="spacer"></div>
       <div id="meta" class="meta"></div>
     </div>
   </div>
@@ -377,6 +387,22 @@ _VIEWER_HTML = """\
     });
     document.getElementById("preview").addEventListener("click", () => {
       if (slideUrl) app.openLink({ url: slideUrl });
+    });
+    document.getElementById("copy-btn").addEventListener("click", async () => {
+      if (!slideUrl) return;
+      const btn = document.getElementById("copy-btn");
+      try {
+        await navigator.clipboard.writeText(slideUrl);
+        btn.textContent = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = "Copy link";
+          btn.classList.remove("copied");
+        }, 2000);
+      } catch {
+        btn.textContent = "Copy failed";
+        setTimeout(() => { btn.textContent = "Copy link"; }, 2000);
+      }
     });
 
     await app.connect();
@@ -497,6 +523,11 @@ async def render_slides(
         "UUID of an existing presentation to update in-place (same URL). "
         "Omit to create a new presentation.",
     ] = None,
+    color_schema: Annotated[
+        str,
+        "Color scheme: 'light' (default), 'dark', or 'auto'. "
+        "Controls whether slides render in light or dark mode.",
+    ] = "light",
     ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Render a Slidev presentation from markdown and return its hosted URL.
@@ -524,6 +555,7 @@ async def render_slides(
             markdown=markdown,
             theme=theme,
             uuid=uuid,
+            color_schema=color_schema,
             session_id=session_id,
             session_map=state.session_map,
             builder=state.builder,

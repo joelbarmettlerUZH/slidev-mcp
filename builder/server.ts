@@ -26,7 +26,7 @@ const server = Bun.serve({
     if (req.method === "POST" && url.pathname === "/build") {
       try {
         const body = await req.json();
-        const { markdown, theme, uuid, base_path } = body;
+        const { markdown, theme, uuid, base_path, color_schema } = body;
 
         if (!markdown || !theme || !uuid || !base_path) {
           return Response.json(
@@ -35,7 +35,10 @@ const server = Bun.serve({
           );
         }
 
-        const result = await runBuild({ markdown, theme, uuid, basePath: base_path });
+        const result = await runBuild({
+          markdown, theme, uuid, basePath: base_path,
+          colorSchema: color_schema || "light",
+        });
         return Response.json(result);
       } catch (err: any) {
         const status = err.status || 500;
@@ -49,7 +52,7 @@ const server = Bun.serve({
     if (req.method === "POST" && url.pathname === "/export") {
       try {
         const body = await req.json();
-        const { markdown, theme, uuid, format } = body;
+        const { markdown, theme, uuid, format, color_schema } = body;
 
         if (!markdown || !theme || !uuid) {
           return Response.json(
@@ -61,6 +64,7 @@ const server = Bun.serve({
         const result = await runExport({
           markdown, theme, uuid,
           format: format === "png" ? "png" : "pdf",
+          colorSchema: color_schema || "light",
         });
         return Response.json(result);
       } catch (err: any) {

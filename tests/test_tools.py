@@ -32,7 +32,9 @@ def session_map() -> SessionMap:
 def mock_builder() -> MagicMock:
     builder = MagicMock(spec=BuildOrchestrator)
 
-    async def fake_build(markdown: str, theme: str, uuid: str) -> BuildResult:
+    async def fake_build(
+        markdown: str, theme: str, uuid: str, color_schema: str = "light"
+    ) -> BuildResult:
         return BuildResult(
             uuid=uuid,
             url=f"https://test.example.com/slides/{uuid}/",

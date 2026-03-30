@@ -49,7 +49,9 @@ class BuildOrchestrator:
         if size > MAX_MARKDOWN_SIZE:
             raise MarkdownTooLarge(size, MAX_MARKDOWN_SIZE)
 
-    async def build(self, markdown: str, theme: str, uuid: str) -> BuildResult:
+    async def build(
+        self, markdown: str, theme: str, uuid: str, color_schema: str = "light"
+    ) -> BuildResult:
         self._validate_theme(theme)
         self._validate_markdown(markdown)
 
@@ -61,6 +63,7 @@ class BuildOrchestrator:
                     "theme": theme,
                     "uuid": uuid,
                     "base_path": f"/slides/{uuid}/",
+                    "color_schema": color_schema,
                 },
             )
         except httpx.TimeoutException:
@@ -87,7 +90,9 @@ class BuildOrchestrator:
             uuid=uuid, url=url, build_time_seconds=elapsed, html=html, preview_base64=preview_base64
         )
 
-    async def export(self, markdown: str, theme: str, uuid: str, fmt: str = "pdf") -> ExportResult:
+    async def export(
+        self, markdown: str, theme: str, uuid: str, fmt: str = "pdf", color_schema: str = "light"
+    ) -> ExportResult:
         """Export a slide deck as PDF or PNG screenshots."""
         self._validate_theme(theme)
 
@@ -99,6 +104,7 @@ class BuildOrchestrator:
                     "theme": theme,
                     "uuid": uuid,
                     "format": fmt,
+                    "color_schema": color_schema,
                 },
                 timeout=httpx.Timeout(180, connect=10),
             )
