@@ -286,8 +286,52 @@ _VIEWER_HTML = """\
       width: 100%; background: transparent; padding: 12px;
     }
     .loading {
-      display: flex; align-items: center; justify-content: center;
-      min-height: 120px; opacity: 0.5; font-size: 14px;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px; width: 100%; max-width: 640px; padding: 4px 0;
+    }
+    .skeleton {
+      width: 100%; aspect-ratio: 16/9; border-radius: 8px;
+      background: linear-gradient(
+        110deg,
+        rgba(128,128,128,0.06) 8%,
+        rgba(128,128,128,0.14) 18%,
+        rgba(128,128,128,0.06) 33%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.5s linear infinite;
+      position: relative; overflow: hidden;
+    }
+    .skeleton-lines {
+      position: absolute; bottom: 20%; left: 8%; right: 30%;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .skeleton-lines div {
+      height: 8px; border-radius: 4px;
+      background: rgba(128,128,128,0.12);
+    }
+    .skeleton-lines div:first-child {
+      height: 14px; width: 60%; border-radius: 6px;
+      background: rgba(128,128,128,0.15);
+    }
+    .skeleton-lines div:nth-child(2) { width: 85%; }
+    .skeleton-lines div:nth-child(3) { width: 70%; }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .loading-text {
+      font-size: 13px; opacity: 0.4;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(128,128,128,0.15);
+      border-top-color: rgba(128,128,128,0.5);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     .result { display: none; width: 100%; max-width: 640px; }
     .preview {
@@ -335,7 +379,17 @@ _VIEWER_HTML = """\
   </style>
 </head>
 <body>
-  <div id="loading" class="loading">Building slides&hellip;</div>
+  <div id="loading" class="loading">
+    <div class="skeleton">
+      <div class="skeleton-lines">
+        <div></div><div></div><div></div>
+      </div>
+    </div>
+    <div class="loading-text">
+      <div class="spinner"></div>
+      Building your presentation&hellip;
+    </div>
+  </div>
   <div id="result" class="result">
     <div id="preview" class="preview hidden">
       <img id="preview-img" alt="Slide preview">
