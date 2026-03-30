@@ -65,6 +65,7 @@ class TestServerRegistration:
         resource_uris = {str(r.uri) for r in resources}
         # Our hand-authored resources should always be present
         assert "slidev://themes/installed" in resource_uris
+        assert "slidev://themes/guide" in resource_uris
         assert "slidev://examples/minimal" in resource_uris
         assert "slidev://examples/full_demo" in resource_uris
 
@@ -74,3 +75,19 @@ class TestServerRegistration:
         assert len(content) > 0
         text = content[0].content if hasattr(content[0], "content") else str(content[0])
         assert "default" in text
+
+
+class TestViewerAppRegistration:
+    """Verify the slide viewer app resource exists."""
+
+    def test_viewer_html_constant(self) -> None:
+        from slidev_mcp.server import _VIEWER_HTML
+
+        assert "<!DOCTYPE html>" in _VIEWER_HTML
+        assert "ext-apps" in _VIEWER_HTML
+        assert "ontoolresult" in _VIEWER_HTML
+
+    def test_viewer_uri_constant(self) -> None:
+        from slidev_mcp.server import _VIEWER_URI
+
+        assert _VIEWER_URI == "ui://slidev-mcp/viewer.html"

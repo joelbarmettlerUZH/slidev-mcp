@@ -10,15 +10,17 @@ from pathlib import Path
 from typing import Annotated
 
 from fastmcp import Context, FastMCP
+from fastmcp.server.apps import AppConfig, ResourceCSP
 from fastmcp.server.lifespan import lifespan
-from sqlalchemy import select, text
+from fastmcp.tools import ToolResult
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator
 from slidev_mcp.config import Settings
 from slidev_mcp.db import create_engine, create_session_factory, create_tables
 from slidev_mcp.errors import SlidevMcpError
-from slidev_mcp.models import Slide
+from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.resource_registry import load_resources
 from slidev_mcp.sessions import SessionMap
 from slidev_mcp.tools import list_session_slides as _list_session_slides
@@ -156,6 +158,120 @@ mcp = FastMCP(
 )
 mcp._lifespan_context = None  # type: ignore[attr-defined]
 
+# ---------------------------------------------------------------------------
+# MCP App: Slide Viewer
+# ---------------------------------------------------------------------------
+
+_VIEWER_URI = "ui://slidev-mcp/viewer.html"
+
+_VIEWER_HTML = """\
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Helvetica, Arial, sans-serif;
+      display: flex; flex-direction: column;
+      width: 100%; height: 100vh;
+      background: transparent;
+    }
+    .container {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 8px; gap: 8px;
+    }
+    .frame-wrapper {
+      flex: 1; position: relative;
+      border-radius: 8px; overflow: hidden;
+      border: 1px solid rgba(128,128,128,0.2);
+      background: #000;
+    }
+    .frame-wrapper iframe {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%; border: none;
+    }
+    .info {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 12px; opacity: 0.7;
+      padding: 0 4px;
+    }
+    .info a {
+      color: inherit; text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .loading {
+      flex: 1; display: flex; align-items: center;
+      justify-content: center; opacity: 0.5;
+      font-size: 14px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loading" class="loading">Building slides&hellip;</div>
+    <div id="viewer" class="hidden">
+      <div class="frame-wrapper">
+        <iframe id="slides-frame" sandbox="allow-scripts allow-same-origin"
+                loading="lazy"></iframe>
+      </div>
+    </div>
+    <div id="info" class="info hidden"></div>
+  </div>
+  <script type="module">
+    import { App } from
+      "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+    const app = new App({ name: "Slidev Viewer", version: "1.0.0" });
+
+    app.ontoolresult = ({ content }) => {
+      const text = content?.find(c => c.type === "text");
+      if (!text) return;
+      let data;
+      try { data = JSON.parse(text.text); } catch { return; }
+      if (!data.url) return;
+
+      document.getElementById("loading").classList.add("hidden");
+
+      const viewer = document.getElementById("viewer");
+      viewer.classList.remove("hidden");
+      viewer.style.flex = "1";
+      viewer.style.display = "flex";
+      viewer.style.flexDirection = "column";
+      document.querySelector(".frame-wrapper").style.flex = "1";
+
+      document.getElementById("slides-frame").src = data.url;
+
+      const info = document.getElementById("info");
+      info.classList.remove("hidden");
+      info.innerHTML =
+        `<a href="${data.url}" target="_blank" rel="noopener">Open in new tab</a>`
+        + `<span>UUID: ${data.uuid}</span>`
+        + `<span>Built in ${data.build_time_seconds.toFixed(1)}s</span>`;
+    };
+
+    await app.connect();
+  </script>
+</body>
+</html>"""
+
+
+@mcp.resource(
+    _VIEWER_URI,
+    app=AppConfig(
+        csp=ResourceCSP(
+            resource_domains=["https://unpkg.com"],
+            frame_domains=["https://*"],
+        ),
+    ),
+)
+def slide_viewer() -> str:
+    """Interactive slide deck viewer — renders the built presentation inline."""
+    return _VIEWER_HTML
+
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
@@ -192,15 +308,6 @@ async def health_check(request):
 
 
 @dataclass
-class RenderResult:
-    """Result of rendering a Slidev presentation."""
-
-    url: str
-    uuid: str
-    build_time_seconds: float
-
-
-@dataclass
 class SlideInfo:
     """Information about a single slide deck."""
 
@@ -226,6 +333,7 @@ class SessionSlides:
         "idempotentHint": False,
         "openWorldHint": False,
     },
+    app=AppConfig(resourceUri=_VIEWER_URI),
 )
 async def render_slides(
     markdown: Annotated[
@@ -244,7 +352,7 @@ async def render_slides(
         "Omit to create a new presentation.",
     ] = None,
     ctx: Context = None,
-) -> RenderResult:
+) -> ToolResult:
     """Render a Slidev presentation from markdown and return its hosted URL.
 
     IMPORTANT: Before calling this tool, you MUST first read the resource
@@ -252,6 +360,10 @@ async def render_slides(
     has unique layouts, components, and frontmatter options documented there.
     Apply the theme's specific features (layouts, components, slots) in your
     markdown to produce high-quality slides that match the theme's design.
+
+    If the user has aesthetic preferences but no specific theme in mind, read
+    `slidev://themes/guide` first to pick the best matching theme, then read
+    the full theme resource before building.
 
     Also read `slidev://themes/installed` to see all available themes.
 
@@ -282,7 +394,7 @@ async def render_slides(
                 "success": True,
             },
         )
-        return RenderResult(**result)
+        return ToolResult(content=json.dumps(result))
     except SlidevMcpError as e:
         logger.warning(
             "render_slides failed: %s",
@@ -320,6 +432,87 @@ async def list_session_slides(ctx: Context) -> SessionSlides:
     return SessionSlides(
         slides=[SlideInfo(**s) for s in result["slides"]],
     )
+
+
+@mcp.resource("slides://session")
+async def session_slides_resource(ctx: Context) -> str:
+    """All slides created in the current MCP session with themes, URLs, and markdown."""
+    lc = ctx.lifespan_context
+    session_id = ctx.session_id or ctx.client_id or "unknown"
+    settings = lc["settings"]
+
+    async with lc["db_session_factory"]() as session:
+        result = await session.execute(select(Slide).where(Slide.session_id == session_id))
+        slides = result.scalars().all()
+
+        entries = []
+        for slide in slides:
+            latest = await session.scalar(
+                select(SlideVersion.markdown)
+                .where(SlideVersion.slide_uuid == slide.uuid)
+                .order_by(SlideVersion.version.desc())
+                .limit(1)
+            )
+            version_count = await session.scalar(
+                select(func.count())
+                .select_from(SlideVersion)
+                .where(SlideVersion.slide_uuid == slide.uuid)
+            )
+            host = settings.slides_domain or settings.domain
+            entries.append(
+                f"## {slide.uuid}\n\n"
+                f"- **Theme:** {slide.theme}\n"
+                f"- **URL:** https://{host}/slides/{slide.uuid}/\n"
+                f"- **Versions:** {version_count}\n\n"
+                f"```markdown\n{latest or '(no markdown stored)'}\n```"
+            )
+
+    if not entries:
+        return "No slides in this session yet."
+    return "# Session Slides\n\n" + "\n\n---\n\n".join(entries)
+
+
+@mcp.resource("slides://session/{uuid}")
+async def slide_detail_resource(uuid: str, ctx: Context) -> str:
+    """Details for a specific slide: theme, markdown, URL, and version history."""
+    lc = ctx.lifespan_context
+    session_id = ctx.session_id or ctx.client_id or "unknown"
+    settings = lc["settings"]
+
+    async with lc["db_session_factory"]() as session:
+        slide = await session.get(Slide, uuid)
+        if slide is None:
+            return f"Slide `{uuid}` not found."
+        if slide.session_id != session_id:
+            return f"Slide `{uuid}` belongs to a different session."
+
+        versions_result = await session.execute(
+            select(SlideVersion)
+            .where(SlideVersion.slide_uuid == uuid)
+            .order_by(SlideVersion.version.desc())
+        )
+        version_list = versions_result.scalars().all()
+
+    host = settings.slides_domain or settings.domain
+    latest = version_list[0] if version_list else None
+
+    output = f"# Slide {uuid}\n\n"
+    output += f"- **Theme:** {slide.theme}\n"
+    output += f"- **URL:** https://{host}/slides/{uuid}/\n"
+    output += f"- **Created:** {slide.created_at}\n"
+    output += f"- **Updated:** {slide.updated_at}\n"
+    output += f"- **Versions:** {len(version_list)}\n"
+
+    if latest:
+        output += f"\n## Current Markdown (v{latest.version})\n\n"
+        output += f"```markdown\n{latest.markdown}\n```\n"
+
+    if len(version_list) > 1:
+        output += "\n## Version History\n\n"
+        for v in version_list:
+            output += f"- **v{v.version}** ({v.created_at}) — theme: {v.theme}\n"
+
+    return output
 
 
 def _register_resources(mcp_server: FastMCP, resources: dict[str, str]) -> None:

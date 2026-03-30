@@ -3,7 +3,7 @@ import uuid as uuid_mod
 from typing import Annotated, Any
 
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from slidev_mcp.builder import BuildOrchestrator
 from slidev_mcp.errors import (
@@ -11,7 +11,7 @@ from slidev_mcp.errors import (
     UuidForeign,
     UuidSealed,
 )
-from slidev_mcp.models import Slide
+from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.sessions import SessionMap
 
 _UUID4_PATTERN = re.compile(
@@ -65,6 +65,19 @@ async def render_slides(
             existing.theme = theme
         else:
             session.add(Slide(uuid=uuid, session_id=session_id, theme=theme))
+
+        # Append versioned markdown snapshot
+        max_ver = await session.scalar(
+            select(func.max(SlideVersion.version)).where(SlideVersion.slide_uuid == uuid)
+        )
+        session.add(
+            SlideVersion(
+                slide_uuid=uuid,
+                version=(max_ver or 0) + 1,
+                markdown=markdown,
+                theme=theme,
+            )
+        )
         await session.commit()
 
     session_map.register(uuid, session_id)
@@ -87,6 +100,17 @@ async def list_session_slides(
         result = await session.execute(select(Slide).where(Slide.session_id == session_id))
         slides = result.scalars().all()
 
+        # Get version counts in one query
+        version_counts: dict[str, int] = {}
+        if slides:
+            uuids = [s.uuid for s in slides]
+            rows = await session.execute(
+                select(SlideVersion.slide_uuid, func.count())
+                .where(SlideVersion.slide_uuid.in_(uuids))
+                .group_by(SlideVersion.slide_uuid)
+            )
+            version_counts = dict(rows.all())
+
     return {
         "slides": [
             {
@@ -95,6 +119,7 @@ async def list_session_slides(
                 "theme": s.theme,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+                "version_count": version_counts.get(s.uuid, 0),
             }
             for s in slides
         ]

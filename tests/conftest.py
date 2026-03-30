@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from slidev_mcp.models import Base, Slide
+from slidev_mcp.models import Base, Slide, SlideVersion
 from slidev_mcp.sessions import SessionMap
 
 
@@ -36,3 +36,12 @@ def make_slide(
     theme: str = "default",
 ) -> Slide:
     return Slide(uuid=uuid, session_id=session_id, theme=theme)
+
+
+def make_slide_version(
+    slide_uuid: str = "test-uuid",
+    version: int = 1,
+    markdown: str = "# Test",
+    theme: str = "default",
+) -> SlideVersion:
+    return SlideVersion(slide_uuid=slide_uuid, version=version, markdown=markdown, theme=theme)

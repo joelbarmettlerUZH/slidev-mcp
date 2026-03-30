@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator, BuildResult
@@ -12,7 +13,7 @@ from slidev_mcp.errors import (
     UuidForeign,
     UuidSealed,
 )
-from slidev_mcp.models import Slide
+from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.sessions import SessionMap
 from slidev_mcp.tools import list_session_slides, render_slides
 
@@ -70,6 +71,17 @@ class TestRenderSlides:
         assert slide.session_id == "session-1"
         assert slide.theme == "default"
 
+        # Verify version row created
+        async with db_session_factory() as session:
+            ver_result = await session.execute(
+                select(SlideVersion).where(SlideVersion.slide_uuid == result["uuid"])
+            )
+            versions = ver_result.scalars().all()
+        assert len(versions) == 1
+        assert versions[0].version == 1
+        assert versions[0].markdown == "# Test"
+        assert versions[0].theme == "default"
+
         # Verify session map registration
         assert session_map.owns(result["uuid"], "session-1")
 
@@ -106,6 +118,22 @@ class TestRenderSlides:
         async with db_session_factory() as session:
             slide = await session.get(Slide, result1["uuid"])
         assert slide.theme == "seriph"
+
+        # Verify both versions exist
+        async with db_session_factory() as session:
+            ver_result = await session.execute(
+                select(SlideVersion)
+                .where(SlideVersion.slide_uuid == result1["uuid"])
+                .order_by(SlideVersion.version)
+            )
+            versions = ver_result.scalars().all()
+        assert len(versions) == 2
+        assert versions[0].version == 1
+        assert versions[0].markdown == "# V1"
+        assert versions[0].theme == "default"
+        assert versions[1].version == 2
+        assert versions[1].markdown == "# V2"
+        assert versions[1].theme == "seriph"
 
     async def test_uuid_foreign_rejected(
         self,
@@ -255,4 +283,5 @@ class TestListSessionSlides:
         for slide in result["slides"]:
             assert "url" in slide
             assert "theme" in slide
+            assert "version_count" in slide
             assert "test.example.com" in slide["url"]

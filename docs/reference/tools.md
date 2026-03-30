@@ -66,7 +66,8 @@ None.
       "url": "https://your-server.example.com/slides/abc123-def456/",
       "theme": "seriph",
       "created_at": "2026-03-23T14:12:00+00:00",
-      "updated_at": "2026-03-23T14:15:30+00:00"
+      "updated_at": "2026-03-23T14:15:30+00:00",
+      "version_count": 3
     }
   ]
 }

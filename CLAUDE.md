@@ -27,7 +27,7 @@ MCP Client ──MCP/HTTP──▶ MCP Server (Python/FastMCP)
 |---|---|---|
 | `mcp-server` | `python:3.13-slim` + uv | FastMCP server, build orchestration via HTTP |
 | `builder` | `oven/bun` | Bun HTTP server, per-theme Slidev builds |
-| `postgres` | `postgres:17-alpine` | Build metadata, GC tracking |
+| `postgres` | `postgres:17-alpine` | Build metadata, versioned markdown, GC tracking |
 | `nginx` | `nginx:alpine` | Static file serving for built slides |
 | `traefik` | `traefik:v3.6` | TLS, routing, rate limiting (local + prod only) |
 
@@ -47,13 +47,14 @@ slidev-mcp/
 │   ├── tools.py               # render_slides, list_session_slides (business logic)
 │   ├── builder.py             # HTTP client to builder service
 │   ├── sessions.py            # In-memory UUID→session map
-│   ├── models.py              # SQLAlchemy ORM (Slide table)
+│   ├── models.py              # SQLAlchemy ORM (Slide, SlideVersion tables)
 │   ├── db.py                  # Async engine, session factory
 │   ├── resource_registry.py   # Maps resource URIs → files
 │   ├── config.py              # pydantic-settings, ALLOWED_THEMES
 │   ├── errors.py              # Typed error classes
 │   └── resources/             # Hand-authored + fetched resources
 │       ├── installed_themes.md
+│       ├── theme_guide.md     # Theme selection guide (style, tone, best-for)
 │       ├── examples/          # minimal.md, full_demo.md
 │       └── themes/            # Per-theme README + example.md (fetched from npm/GitHub)
 │
@@ -144,17 +145,19 @@ Themes are defined in `builder/themes.json` — the single source of truth:
 1. Add entry to `builder/themes.json` (package, version, license, repo, optional overrides)
 2. Add theme name to `ALLOWED_THEMES` in `src/slidev_mcp/config.py`
 3. Add description row to `src/slidev_mcp/resources/installed_themes.md`
-4. Run `python3 scripts/fetch-theme-readmes.py` to fetch README + example.md
-5. Add entry to `docs/.vitepress/themes.ts` (with preview URLs if available)
-6. Rebuild builder: `docker build -t slidev-mcp-builder -f builder/Dockerfile builder/`
-7. Check validation output — if the theme fails, investigate (wrong Slidev version? missing deps?)
+4. Add entry to `src/slidev_mcp/resources/theme_guide.md` (style, tone, best-for, key features)
+5. Run `python3 scripts/fetch-theme-readmes.py` to fetch README + example.md
+6. Add entry to `docs/.vitepress/themes.ts` (with preview URLs if available)
+7. Rebuild builder: `docker build -t slidev-mcp-builder -f builder/Dockerfile builder/`
+8. Check validation output — if the theme fails, investigate (wrong Slidev version? missing deps?)
 
 ## MCP Tools
 
 ### `render_slides`
 - Parameters: `markdown` (str), `theme` (str), `uuid` (str | None)
-- Returns: `RenderResult` dataclass (url, uuid, build_time_seconds)
+- Returns: `ToolResult` with JSON text content (url, uuid, build_time_seconds)
 - Annotations: `readOnlyHint=false`, `openWorldHint=false`
+- **MCP App:** `app=AppConfig(resourceUri="ui://slidev-mcp/viewer.html")` — clients that support the MCP Apps extension see the built slides embedded inline; non-app clients get the same JSON text response
 - Tool description instructs LLMs to read `slidev://themes/{name}` before calling
 - UUID validation: `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`
 
@@ -163,7 +166,18 @@ Themes are defined in `builder/themes.json` — the single source of truth:
 - Returns: `SessionSlides` dataclass (list of `SlideInfo`)
 - Annotations: `readOnlyHint=true`
 
-All parameters use `typing.Annotated` with string descriptions. Return types are dataclasses for structured MCP output. Errors are returned via `ValueError` with `[error_code] message` format.
+All parameters use `typing.Annotated` with string descriptions. Errors are returned via `ValueError` with `[error_code] message` format.
+
+### MCP App: Slide Viewer
+
+The `render_slides` tool declares an MCP App (`ui://slidev-mcp/viewer.html`). On clients that support the MCP Apps extension protocol (e.g. Claude Desktop), the built slide deck is rendered in a sandboxed iframe directly in the conversation. The viewer:
+- Receives the tool result via `@modelcontextprotocol/ext-apps` SDK
+- Embeds the slides URL in an iframe with 16:10 aspect ratio
+- Shows a "Building slides..." state while waiting
+- Displays a link, UUID, and build time below the preview
+- Supports iterative updates (re-renders on each new tool result)
+
+Non-app clients (CLI, most IDEs) receive the same JSON text and are unaffected.
 
 ## MCP Resources
 
@@ -174,11 +188,15 @@ All parameters use `typing.Annotated` with string descriptions. Return types are
 | `slidev://builtin/components` | `vendor/slidev-docs/` |
 | `slidev://builtin/layouts` | `vendor/slidev-docs/` |
 | `slidev://themes/installed` | `src/slidev_mcp/resources/installed_themes.md` |
+| `slidev://themes/guide` | `src/slidev_mcp/resources/theme_guide.md` (style/tone selection guide) |
 | `slidev://themes/{name}` | `src/slidev_mcp/resources/themes/{name}.md` (README + example.md merged) |
+| `slides://session` | Dynamic — all slides in the current session (theme, markdown, URL) |
+| `slides://session/{uuid}` | Dynamic — single slide detail with version history |
 | `slidev://examples/minimal` | `src/slidev_mcp/resources/examples/minimal.md` |
 | `slidev://examples/full_demo` | `src/slidev_mcp/resources/examples/full_demo.md` |
 
 Per-theme resources are loaded dynamically from the `resources/themes/` directory at startup.
+Session slide resources (`slides://`) are dynamic `@mcp.resource` handlers that query the database.
 
 ## Environment Variables
 
@@ -203,7 +221,7 @@ Per-theme resources are loaded dynamically from the `resources/themes/` director
 
 ## Coding Conventions
 
-1. **Pydantic models for data structures.** `BaseModel` with `Annotated[type, Field(description="...")]`. Tool inputs use `Annotated` string descriptions; return types are dataclasses.
+1. **Pydantic models for data structures.** `BaseModel` with `Annotated[type, Field(description="...")]`. Tool inputs use `Annotated` string descriptions; return types are dataclasses or `ToolResult`.
 2. **Async-first.** SQLAlchemy async engine with asyncpg. Builder communication via httpx AsyncClient.
 3. **Type-hint everything.** `str | None` not `Optional[str]`. Dataclasses for structured return types.
 4. **Fail fast.** Catch specific exceptions at system boundaries. Tool errors returned as structured MCP errors via ValueError.

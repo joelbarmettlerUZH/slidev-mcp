@@ -14,6 +14,7 @@ RESOURCE_MAP: dict[str, str] = {
     "slidev://builtin/components": "vendor:builtin/components.md",
     "slidev://builtin/layouts": "vendor:builtin/layouts.md",
     "slidev://themes/installed": "package:resources/installed_themes.md",
+    "slidev://themes/guide": "package:resources/theme_guide.md",
     # Per-theme READMEs are loaded dynamically from resources/themes/*.md below
     "slidev://examples/minimal": "package:resources/examples/minimal.md",
     "slidev://examples/full_demo": "package:resources/examples/full_demo.md",

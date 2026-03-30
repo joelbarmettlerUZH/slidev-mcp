@@ -24,7 +24,17 @@ You don't need to interact with resources directly — your assistant uses them 
 | Resource URI | Content |
 |---|---|
 | `slidev://themes/installed` | Which themes are pre-installed and available on this server |
+| `slidev://themes/guide` | Theme selection guide with style categories, tone, and "best for" recommendations |
 | `slidev://themes/{name}` | Per-theme README with layouts, components, and usage examples (e.g. `slidev://themes/swiss-ai-hub`) |
+
+### Session Slides
+
+| Resource URI | Content |
+|---|---|
+| `slides://session` | All slides created in the current session with their themes, URLs, and latest markdown |
+| `slides://session/{uuid}` | Details for a specific slide: theme, URL, current markdown, and version history |
+
+Session slide resources let the assistant read back previous presentations to reference, modify, or continue iterating on them.
 
 ### Examples
 
@@ -37,9 +47,11 @@ You don't need to interact with resources directly — your assistant uses them 
 
 When your AI assistant is asked to create a presentation, it typically:
 
-1. Reads `slidev://themes/installed` to see which themes are available
-2. Reads `slidev://guide/syntax` to understand the markdown format
-3. Optionally reads `slidev://examples/minimal` or `slidev://examples/full_demo` for reference
+1. Reads `slidev://themes/guide` to understand which theme fits the user's request
+2. Reads `slidev://themes/{name}` for the chosen theme's layouts and components
+3. Reads `slidev://guide/syntax` to understand the markdown format
 4. Generates the markdown and calls `render_slides`
+
+When updating an existing presentation, the assistant reads `slides://session/{uuid}` to get the current markdown, modifies it, and calls `render_slides` with the same UUID.
 
 The resources are sourced from the [official Slidev documentation](https://sli.dev/) pinned to the Slidev version running in the builder.

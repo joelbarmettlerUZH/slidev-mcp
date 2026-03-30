@@ -1,0 +1,125 @@
+# Tunnel-friendly stack: no Traefik, no TLS (tunnel provider handles TLS).
+# Exposes MCP server + nginx on a single port via Caddy reverse proxy.
+#
+# Usage:
+#   docker compose -f docker-compose.tunnel.yml up -d
+#   ssh -p 443 -R0:localhost:8080 -L4300:localhost:4300 a]Trch3s3@a.pinggy.io
+#
+# Then configure your MCP client with: https://<tunnel-url>/mcp
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mcp-server:
+    image: slidev-mcp-server:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mcp
+    networks: [internal, isolated]
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      DATABASE_URL: postgresql+asyncpg://slidev:${POSTGRES_PASSWORD:-slidev}@postgres:5432/slidev
+      SERVER_TRANSPORT: streamable-http
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+      BUILDER_HOST: builder
+      BUILDER_PORT: "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      builder:
+        condition: service_started
+    mem_limit: 2g
+    cpus: 1.0
+    logging: *default-logging
+    restart: unless-stopped
+
+  builder:
+    build:
+      context: ./builder
+      dockerfile: Dockerfile
+    container_name: builder
+    networks: [isolated]
+    volumes:
+      - slides-data:/data/slides
+    user: "1000:1000"
+    mem_limit: 2g
+    cpus: 2.0
+    security_opt:
+      - "no-new-privileges:true"
+    logging: *default-logging
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    networks: [internal]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: slidev
+      POSTGRES_USER: slidev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-slidev}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slidev"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+    logging: *default-logging
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    networks: [internal]
+    volumes:
+      - slides-data:/data/slides:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    restart: unless-stopped
+
+  # Simple reverse proxy: /mcp + /health → mcp-server, /slides → nginx
+  gateway:
+    image: caddy:2-alpine
+    networks: [internal]
+    ports:
+      - "8080:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        :8080 {
+          handle /mcp* {
+            reverse_proxy mcp-server:8000
+          }
+          handle /health {
+            reverse_proxy mcp-server:8000
+          }
+          handle /slides/* {
+            reverse_proxy nginx:8080
+          }
+        }
+        EOF
+        caddy run --config /tmp/Caddyfile --adapter caddyfile
+    depends_on:
+      - mcp-server
+      - nginx
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  slides-data:
+  pg-data:
+
+networks:
+  internal:
+  isolated:
+    internal: true

@@ -67,6 +67,12 @@ class TestLoadResources:
         for uri in package_uris:
             assert uri not in resources
 
+    def test_theme_guide_loaded(self, vendor_dir: Path, package_dir: Path) -> None:
+        resources = load_resources(vendor_dir, package_dir)
+        assert "slidev://themes/guide" in resources
+        assert "Quick Reference" in resources["slidev://themes/guide"]
+        assert "neocarbon" in resources["slidev://themes/guide"]
+
     def test_resource_map_has_expected_uris(self) -> None:
         expected_uris = [
             "slidev://guide/syntax",
@@ -76,6 +82,7 @@ class TestLoadResources:
             "slidev://builtin/components",
             "slidev://builtin/layouts",
             "slidev://themes/installed",
+            "slidev://themes/guide",
             "slidev://examples/minimal",
             "slidev://examples/full_demo",
         ]
