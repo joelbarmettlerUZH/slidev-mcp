@@ -15,7 +15,7 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
   "context_servers": {
     "slidev-mcp": {
       "settings": {
-        "url": "https://your-server.example.com/mcp"
+        "url": "https://mcp.slidev-mcp.org/mcp"
       }
     }
   }

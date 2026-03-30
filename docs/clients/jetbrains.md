@@ -16,7 +16,7 @@ JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, GoLand, etc.) support MCP serv
 {
   "slidev-mcp": {
     "type": "http",
-    "url": "https://your-server.example.com/mcp"
+    "url": "https://mcp.slidev-mcp.org/mcp"
   }
 }
 ```

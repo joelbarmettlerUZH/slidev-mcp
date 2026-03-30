@@ -14,7 +14,7 @@ Add to your Gemini CLI settings file (`~/.gemini/settings.json`):
 {
   "mcpServers": {
     "slidev-mcp": {
-      "httpUrl": "https://your-server.example.com/mcp"
+      "httpUrl": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }

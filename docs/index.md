@@ -1,11 +1,11 @@
 ---
 layout: home
-description: Generate, render, and host Slidev presentations from any MCP client.
+description: Ask your AI assistant to create a presentation. Get a shareable link.
 
 hero:
   name: Slidev MCP
   text: AI-powered presentations
-  tagline: Generate, render, and host beautiful Slidev presentations directly from your AI assistant.
+  tagline: Connect your AI assistant, ask for slides, get a link you can share with anyone.
   actions:
     - theme: brand
       text: Get Started
@@ -15,16 +15,16 @@ hero:
       link: https://github.com/joelbarmettlerUZH/slidev-mcp
 
 features:
-  - title: Markdown-Powered
-    details: Write presentations in plain markdown with Slidev syntax. Your AI assistant handles the rest.
+  - title: Connect in 30 Seconds
+    details: One command for Claude Code, a JSON snippet for Cursor, or a URL for any MCP client. No API keys, no sign-up.
   - title: 24 Curated Themes
-    details: Choose from 24 curated themes — all license-checked, version-pinned, and build-validated.
-  - title: Any MCP Client
-    details: Works with Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, JetBrains, Zed, ChatGPT, and more.
-  - title: Hosted & Shareable
-    details: Every presentation gets a unique URL you can share immediately. No downloads, no exports needed.
+    details: From minimalist to cinematic. Ask to see the gallery or describe a style and let the AI pick for you.
+  - title: Shareable Links
+    details: Every presentation gets a URL that works in any browser. Bookmark it, send it, present from it.
   - title: Iterative Updates
-    details: Update your slides within the same session. The same URL reflects your latest changes.
+    details: Keep refining your slides in the same conversation. The URL stays the same, the content updates.
+  - title: Works Everywhere
+    details: Claude Code, Claude Desktop, claude.ai, Cursor, Windsurf, VS Code, JetBrains, Zed, ChatGPT, and more.
   - title: Secure by Design
-    details: Builds run in isolated containers with no network access. Theme allowlists prevent supply chain attacks.
+    details: Builds run in isolated containers with no network access. Your markdown goes in, static HTML comes out.
 ---

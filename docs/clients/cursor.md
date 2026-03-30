@@ -14,7 +14,7 @@ Add to `.cursor/mcp.json` in your project root (or globally at `~/.cursor/mcp.js
 {
   "mcpServers": {
     "slidev-mcp": {
-      "url": "https://your-server.example.com/mcp"
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }

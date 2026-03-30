@@ -14,7 +14,7 @@ Add to your Windsurf MCP configuration file (`~/.codeium/windsurf/mcp_config.jso
 {
   "mcpServers": {
     "slidev-mcp": {
-      "serverUrl": "https://your-server.example.com/mcp"
+      "serverUrl": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }

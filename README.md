@@ -5,13 +5,13 @@
 <h1 align="center">Slidev MCP</h1>
 
 <p align="center">
-  Generate, render, and host Slidev presentations from any AI assistant
+  Ask your AI to create a presentation. Get a shareable link.
 </p>
 
 <p align="center">
-  <a href="https://github.com/joelbarmettlerUZH/slidev-mcp">GitHub</a> &middot;
-  <a href="#quick-start">Getting Started</a> &middot;
-  <a href="#supported-mcp-clients">MCP Clients</a> &middot;
+  <a href="https://slidev-mcp.org">Docs</a> &middot;
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#supported-clients">Clients</a> &middot;
   <a href="#themes">Themes</a>
 </p>
 
@@ -22,39 +22,27 @@
 
 ---
 
-## What It Does
+## How It Works
 
-Connect your AI assistant to a Slidev MCP server, ask it to create a presentation, and get back a live URL — ready to share.
+1. **Connect** your AI assistant to `mcp.slidev-mcp.org/mcp`
+2. **Ask** it to create a presentation on any topic
+3. **Share** the link it gives you &mdash; it works in any browser, no login required
 
-- **24 curated themes** — all MIT/Apache-2.0 licensed, version-pinned, build-validated
-- **Shareable URLs** — every presentation gets a unique link
-- **Iterative updates** — modify slides within the same session, same URL
-- **Secure** — builds run in isolated containers with no network access
-
-## Supported MCP Clients
-
-| Client | Type |
-|---|---|
-| [Claude Code](#claude-code) | CLI |
-| [Claude Desktop](#other-clients) | Desktop app |
-| [Cursor](#cursor) | IDE |
-| [Windsurf](#other-clients) | IDE |
-| [VS Code (Copilot)](#other-clients) | IDE |
-| [JetBrains IDEs](#other-clients) | IDE |
-| [Zed](#other-clients) | IDE |
-| [Opencode](#other-clients) | CLI |
-| [Gemini CLI](#other-clients) | CLI |
-| [ChatGPT](#other-clients) | Web / Desktop |
-
-Works with any client that supports [MCP](https://modelcontextprotocol.io/) streamable HTTP.
+Your slides are hosted and ready to present. Bookmark them, send them to a colleague, or open them on your phone.
 
 ## Quick Start
 
 ### Claude Code
 
 ```bash
-claude mcp add --scope user slidev-mcp --transport streamable-http https://your-server.example.com/mcp
+claude mcp add --scope user slidev-mcp --transport streamable-http https://mcp.slidev-mcp.org/mcp
 ```
+
+That's it. Start a conversation and ask Claude to make a presentation.
+
+### Claude Desktop / claude.ai
+
+Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.anthropic.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in Settings > Connectors.
 
 ### Cursor
 
@@ -64,7 +52,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "slidev-mcp": {
-      "url": "https://your-server.example.com/mcp"
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }
@@ -72,36 +60,65 @@ Add to `.cursor/mcp.json`:
 
 ### Other Clients
 
-Any MCP client that supports streamable HTTP works with:
+Any MCP client that supports [streamable HTTP](https://modelcontextprotocol.io/) works with:
 
 ```
-https://your-server.example.com/mcp
+https://mcp.slidev-mcp.org/mcp
 ```
 
-## Self-Hosting
+See [client setup guides](https://slidev-mcp.org/clients/) for Windsurf, VS Code, JetBrains, Zed, Opencode, Gemini CLI, and ChatGPT.
 
-Slidev MCP is self-hosted. Deploy on your own server with Docker Compose:
+## What You Can Do
 
-```bash
-git clone https://github.com/joelbarmettlerUZH/slidev-mcp.git
-cd slidev-mcp
-cp .env.example .env    # Set DOMAIN, POSTGRES_PASSWORD, ACME_EMAIL
-docker compose -f docker-compose.prod.yml up -d
+- **Create presentations** &mdash; describe what you want, pick a theme, get slides
+- **Update slides** &mdash; ask for changes and the same URL updates in place
+- **Browse themes** &mdash; ask to see the theme gallery or let the AI pick one for you
+- **Learn Slidev** &mdash; the AI reads the Slidev docs automatically and uses theme-specific layouts and components
+
+## Sharing Your Slides
+
+Every presentation gets a permanent URL like:
+
 ```
+https://slides.slidev-mcp.org/slides/abc123-def456/
+```
+
+- Open it in any browser &mdash; no login, no app required
+- Bookmark it for later
+- Send it to anyone
+- Present directly from the browser (press `f` for fullscreen)
+- Slides stay available for 30 days after your session ends
+
+While your session is active, you can keep updating the same presentation. Once you disconnect, the slides become a permanent snapshot.
 
 ## Themes
 
-24 pre-installed themes (5 official + 19 community), each individually verified:
+24 pre-installed themes to choose from:
 
 **Official:** `default`, `seriph`, `apple-basic`, `bricks`, `shibainu`
 
 **Community:** `academic`, `cobalt`, `dracula`, `eloc`, `field-manual`, `frankfurt`, `geist`, `neocarbon`, `neversink`, `nord`, `penguin`, `purplin`, `scholarly`, `swiss-ai-hub`, `the-unnamed`, `unicorn`, `vibe`, `vuetiful`, `zhozhoba`
 
-Each theme has its own isolated project with pinned dependencies — no cross-theme conflicts.
+Ask your AI to "show me the themes" for a visual gallery, or describe a style like "something dark and modern" and let it pick.
 
-## How It Works
+## Supported Clients
 
-Your AI assistant sends markdown + a theme name via MCP. The server builds the presentation in an isolated container (no network access, non-root user, resource-limited) and serves the result as a static site. No LLM runs on the server — your client generates the markdown, the server just builds and hosts it.
+| Client | Type | Setup |
+|---|---|---|
+| [Claude Code](https://slidev-mcp.org/clients/claude-code) | CLI | One command |
+| [Claude Desktop / claude.ai](https://slidev-mcp.org/clients/claude-desktop) | Desktop / Web | Custom connector |
+| [Cursor](https://slidev-mcp.org/clients/cursor) | IDE | JSON config |
+| [Windsurf](https://slidev-mcp.org/clients/windsurf) | IDE | JSON config |
+| [VS Code (Copilot)](https://slidev-mcp.org/clients/vscode) | IDE | JSON config |
+| [JetBrains IDEs](https://slidev-mcp.org/clients/jetbrains) | IDE | JSON config |
+| [Zed](https://slidev-mcp.org/clients/zed) | IDE | JSON config |
+| [Opencode](https://slidev-mcp.org/clients/opencode) | CLI | JSON config |
+| [Gemini CLI](https://slidev-mcp.org/clients/gemini-cli) | CLI | JSON config |
+| [ChatGPT](https://slidev-mcp.org/clients/chatgpt) | Web / Desktop | JSON config |
+
+## Self-Hosting
+
+Slidev MCP can be self-hosted on your own server. See the [deployment guide](https://slidev-mcp.org/guide/deployment) for Docker Compose setup with Let's Encrypt TLS.
 
 ## Development
 
@@ -114,4 +131,4 @@ make pr-ready         # Lint + format + test
 
 ## License
 
-[FSL-1.1-ALv2](LICENSE.md) — Functional Source License, converting to Apache 2.0 after two years.
+[FSL-1.1-ALv2](LICENSE.md) &mdash; Functional Source License, converting to Apache 2.0 after two years.

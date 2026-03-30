@@ -15,7 +15,7 @@ Add to `.vscode/mcp.json` in your project root:
   "servers": {
     "slidev-mcp": {
       "type": "http",
-      "url": "https://your-server.example.com/mcp"
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }
@@ -29,7 +29,7 @@ Or add it to your user settings (`settings.json`):
     "servers": {
       "slidev-mcp": {
         "type": "http",
-        "url": "https://your-server.example.com/mcp"
+        "url": "https://mcp.slidev-mcp.org/mcp"
       }
     }
   }

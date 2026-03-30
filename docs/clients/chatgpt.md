@@ -13,7 +13,7 @@ description: How to connect ChatGPT to a Slidev MCP server.
 3. Enter the server URL:
 
 ```
-https://your-server.example.com/mcp
+https://mcp.slidev-mcp.org/mcp
 ```
 
 4. Click **Connect**

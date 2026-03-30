@@ -1,28 +1,22 @@
 ---
-description: How to connect your MCP client to a Slidev MCP server and create your first presentation.
+description: Connect your AI assistant to Slidev MCP and create your first presentation in under a minute.
 ---
 
 # Getting Started
 
-To use Slidev MCP, you need access to a running Slidev MCP server. If your team already hosts one, you just need the server URL. If not, see the [Deployment guide](/guide/deployment) to set one up.
+Slidev MCP lets your AI assistant create, render, and host presentations. Connect once, then ask for slides in natural language.
 
-## Connect Your Client
+## Connect in 30 Seconds
 
-The server URL follows this pattern:
-
-```
-https://your-server.example.com/mcp
-```
-
-Replace `your-server.example.com` with your actual server domain.
-
-### Claude Code
-
-One command:
+### Claude Code (recommended)
 
 ```bash
-claude mcp add --scope user slidev-mcp --transport streamable-http https://your-server.example.com/mcp
+claude mcp add --scope user slidev-mcp --transport streamable-http https://mcp.slidev-mcp.org/mcp
 ```
+
+### Claude Desktop / claude.ai
+
+Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.anthropic.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in Settings > Connectors.
 
 ### Cursor
 
@@ -32,7 +26,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "slidev-mcp": {
-      "url": "https://your-server.example.com/mcp"
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }
@@ -40,41 +34,84 @@ Add to `.cursor/mcp.json`:
 
 ### Other Clients
 
-See the [MCP Clients](/clients/) section for detailed setup instructions for all supported clients.
+See [client setup guides](/clients/) for Windsurf, VS Code, JetBrains, Zed, Opencode, Gemini CLI, and ChatGPT. Any client that supports MCP streamable HTTP works with:
+
+```
+https://mcp.slidev-mcp.org/mcp
+```
+
+::: tip Self-Hosting
+Running your own instance? Replace `mcp.slidev-mcp.org` with your server's domain. See the [deployment guide](/guide/deployment) for setup instructions.
+:::
 
 ## Create Your First Presentation
 
-Once connected, ask your AI assistant to create a presentation:
+Once connected, just ask:
 
-> Create a 5-slide presentation about our Q3 results using the seriph theme
+> "Create a presentation about the benefits of remote work using the seriph theme"
 
-The assistant will:
-1. Read the Slidev syntax and theme resources from the server
-2. Generate the markdown
-3. Call `render_slides` with the markdown and theme
-4. Return a URL like `https://your-server.example.com/slides/abc123-def456/`
+Your AI assistant will:
 
-Open the URL in your browser to see your slides.
+1. Read the theme's documentation to learn its layouts and components
+2. Write Slidev markdown tailored to the theme
+3. Build and host the presentation
+4. Return a shareable URL
+
+The whole process takes about 10-15 seconds.
 
 ## Update Your Slides
 
-Within the same session, you can ask the assistant to modify the presentation:
+Ask for changes and the same URL updates in place:
 
-> Change slide 3 to include a bar chart and update the title
+> "Add a slide about work-life balance after slide 3"
 
-The assistant will re-render the slides using the same UUID. The URL stays the same — just refresh your browser.
+> "Change the theme to neocarbon"
 
-## What's Available
+Just refresh your browser to see the updates.
 
-| Type | What it does |
-|---|---|
-| [**Tools**](/reference/tools) | Render slides, list session slides |
-| [**Resources**](/reference/resources) | Slidev syntax, animations, layouts, components, themes, examples |
-| [**Themes**](/reference/themes) | 24 curated themes to choose from |
+## Browse Themes
+
+Ask to see what's available:
+
+> "Show me the available themes"
+
+Or describe a style and let the AI pick:
+
+> "I want something dark and modern for a tech talk"
+
+## Share Your Slides
+
+Every presentation gets a permanent URL like:
+
+```
+https://slides.slidev-mcp.org/slides/abc123-def456/
+```
+
+- Open in any browser &mdash; no login, no app required
+- Bookmark it or send it to anyone
+- Press `f` for fullscreen presentation mode
+- Slides stay available for 30 days after your session ends
+
+While your session is active, you can keep refining the same presentation. Once you disconnect, the slides become a permanent snapshot.
+
+## Available Tools
+
+Your AI assistant has access to these tools:
+
+| Tool | Purpose |
+|------|---------|
+| `render_slides` | Create or update a presentation |
+| `list_session_slides` | See all presentations from this session |
+| `list_themes` | Read theme descriptions (for the AI to choose) |
+| `browse_themes` | Show a visual theme gallery |
+| `get_theme` | Read a specific theme's full documentation |
+| `get_slidev_guide` | Learn Slidev markdown syntax |
+
+You don't need to call these directly &mdash; just describe what you want.
 
 ## Next Steps
 
-- [MCP Clients](/clients/) — Setup guides for all supported clients
-- [Tools reference](/reference/tools) — Full tool documentation
-- [Themes](/reference/themes) — Browse available themes
-- [Limitations](/reference/limitations) — What to know before you start
+- [Client setup guides](/clients/) &mdash; detailed instructions per client
+- [Tool reference](/reference/tools) &mdash; technical tool documentation
+- [Themes](/reference/themes) &mdash; browse the full theme gallery
+- [Limitations](/reference/limitations) &mdash; what's supported and what isn't

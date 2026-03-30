@@ -10,10 +10,10 @@ Slidev MCP works with any client that supports the [Model Context Protocol](http
 Most clients just need this URL:
 
 ```
-https://your-server.example.com/mcp
+https://mcp.slidev-mcp.org/mcp
 ```
 
-Replace with your actual server domain.
+Self-hosting? Replace with your own server domain.
 :::
 
 ## Supported Clients
@@ -36,7 +36,7 @@ Replace with your actual server domain.
 For any MCP client not listed above, use the **streamable HTTP** transport with your server URL:
 
 ```
-https://your-server.example.com/mcp
+https://mcp.slidev-mcp.org/mcp
 ```
 
 Consult your client's MCP documentation for how to add a streamable HTTP server.

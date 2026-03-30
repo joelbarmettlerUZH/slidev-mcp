@@ -1,10 +1,10 @@
 ---
-description: Reference documentation for all Slidev MCP tools — render_slides and list_session_slides.
+description: Reference documentation for all Slidev MCP tools.
 ---
 
 # Tools
 
-Slidev MCP provides two tools that your AI assistant can call.
+Slidev MCP provides six tools. You don't call them directly &mdash; your AI assistant uses them behind the scenes. This page documents their behavior for reference.
 
 ## render_slides
 
@@ -22,7 +22,7 @@ Render a Slidev presentation from markdown and return its hosted URL.
 
 ```json
 {
-  "url": "https://your-server.example.com/slides/abc123-def456/",
+  "url": "https://mcp.slidev-mcp.org/slides/abc123-def456/",
   "uuid": "abc123-def456",
   "build_time_seconds": 7.42
 }
@@ -63,7 +63,7 @@ None.
   "slides": [
     {
       "uuid": "abc123-def456",
-      "url": "https://your-server.example.com/slides/abc123-def456/",
+      "url": "https://mcp.slidev-mcp.org/slides/abc123-def456/",
       "theme": "seriph",
       "created_at": "2026-03-23T14:12:00+00:00",
       "updated_at": "2026-03-23T14:15:30+00:00",
@@ -72,3 +72,65 @@ None.
   ]
 }
 ```
+
+## list_themes
+
+Get a list of all available themes with style descriptions and recommendations. Used by the AI to decide which theme to use &mdash; does not display anything to the user.
+
+### Parameters
+
+None.
+
+### Returns
+
+Markdown text with a quick reference table and categorized theme recommendations (dark, academic, modern, playful, etc.).
+
+## browse_themes
+
+Show the user a visual theme gallery with preview images. On clients that support MCP Apps (claude.ai, Claude Desktop), this renders an interactive gallery in the conversation.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `themes` | `list[string] \| null` | No | Theme names to show. If omitted, all 24 themes are displayed. |
+
+### Returns
+
+JSON with the theme filter. The visual gallery is rendered by the MCP App.
+
+### Notes
+
+- Pass a filtered list to show only specific themes (e.g. only dark themes)
+- The AI typically calls `list_themes` first to identify matches, then passes the filtered names here
+
+## get_theme
+
+Get full documentation for a specific theme: layouts, components, frontmatter options, and example slides.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `theme` | `string` | Yes | Theme name (e.g. `seriph`, `neocarbon`, `field-manual`) |
+
+### Returns
+
+Markdown text with the theme's README and example slides.
+
+### Notes
+
+- The AI calls this before `render_slides` to learn the theme's unique features
+- Returns an error message if the theme is not found
+
+## get_slidev_guide
+
+Get the Slidev syntax guide: frontmatter, slide separators, speaker notes, layouts, code blocks, and an example deck.
+
+### Parameters
+
+None.
+
+### Returns
+
+Markdown text combining the Slidev syntax reference, built-in layout documentation, and a minimal example deck.

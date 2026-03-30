@@ -55,3 +55,15 @@ When your AI assistant is asked to create a presentation, it typically:
 When updating an existing presentation, the assistant reads `slides://session/{uuid}` to get the current markdown, modifies it, and calls `render_slides` with the same UUID.
 
 The resources are sourced from the [official Slidev documentation](https://sli.dev/) pinned to the Slidev version running in the builder.
+
+## Resources vs Tools
+
+Some MCP clients (like Claude Code) support reading resources automatically. Others (like claude.ai) only support tools. Slidev MCP provides equivalent tools for the most important resources:
+
+| Resource | Equivalent Tool |
+|----------|----------------|
+| `slidev://themes/guide` | `list_themes` |
+| `slidev://themes/{name}` | `get_theme` |
+| `slidev://guide/syntax` + layouts + examples | `get_slidev_guide` |
+
+The AI assistant uses whichever method is available on your client.
