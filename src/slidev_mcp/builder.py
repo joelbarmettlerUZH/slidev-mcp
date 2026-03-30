@@ -13,10 +13,11 @@ MAX_MARKDOWN_SIZE = 1_000_000  # 1 MB
 
 
 class BuildResult:
-    def __init__(self, uuid: str, url: str, build_time_seconds: float) -> None:
+    def __init__(self, uuid: str, url: str, build_time_seconds: float, html: str = "") -> None:
         self.uuid = uuid
         self.url = url
         self.build_time_seconds = build_time_seconds
+        self.html = html
 
 
 class BuildOrchestrator:
@@ -70,7 +71,8 @@ class BuildOrchestrator:
             "Build completed",
             extra={"uuid": uuid, "theme": theme, "duration": elapsed},
         )
-        return BuildResult(uuid=uuid, url=url, build_time_seconds=elapsed)
+        html = data.get("html", "")
+        return BuildResult(uuid=uuid, url=url, build_time_seconds=elapsed, html=html)
 
     async def close(self) -> None:
         await self._client.aclose()

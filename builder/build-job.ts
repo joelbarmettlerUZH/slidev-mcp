@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, rm, writeFile } from "fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
@@ -12,6 +12,7 @@ export interface BuildParams {
 export interface BuildResult {
   uuid: string;
   build_time_seconds: number;
+  html: string;
 }
 
 class BuildError extends Error {
@@ -123,11 +124,25 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
       );
     }
 
-    if (!existsSync(join(distDir, "index.html"))) {
+    const indexPath = join(distDir, "index.html");
+    if (!existsSync(indexPath)) {
       throw new BuildError("build_failed", "Build completed but no index.html produced");
     }
 
-    return { uuid, build_time_seconds: Math.round(elapsed * 100) / 100 };
+    // Read and sanitize the single-file HTML for MCP App embedding.
+    // Strip external resource references that would be blocked by the
+    // host's CSP (Google Fonts, favicon from CDN).
+    let html = await readFile(indexPath, "utf-8");
+    html = html
+      .replace(/<link[^>]*rel=["']icon["'][^>]*>/gi, "")
+      .replace(/<link[^>]*href=["'][^"']*fonts\.googleapis\.com[^"']*["'][^>]*>/gi, "")
+      .replace(/<link[^>]*href=["'][^"']*cdn\.jsdelivr\.net[^"']*["'][^>]*>/gi, "");
+
+    return {
+      uuid,
+      build_time_seconds: Math.round(elapsed * 100) / 100,
+      html,
+    };
   } finally {
     // Clean up work directory
     const buildTmp = join("/tmp/builds", uuid);

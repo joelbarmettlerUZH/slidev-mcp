@@ -177,92 +177,70 @@ _VIEWER_HTML = """\
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                    Helvetica, Arial, sans-serif;
-      display: flex; flex-direction: column;
-      width: 100%; height: 100vh;
-      background: transparent;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px;
+      width: 100%; min-height: 140px;
+      background: transparent; padding: 20px;
     }
-    .container {
-      flex: 1; display: flex; flex-direction: column;
-      padding: 8px; gap: 8px;
+    .loading { opacity: 0.5; font-size: 14px; }
+    .card { display: none; text-align: center; width: 100%; max-width: 480px; }
+    .open-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; margin-bottom: 12px;
+      background: #2563eb; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+      text-decoration: none;
     }
-    .frame-wrapper {
-      flex: 1; position: relative;
-      border-radius: 8px; overflow: hidden;
-      border: 1px solid rgba(128,128,128,0.2);
-      background: #000;
+    .open-btn:hover { background: #1d4ed8; }
+    .open-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    .meta { font-size: 13px; opacity: 0.5; }
+    .meta span + span::before { content: "  ·  "; }
+    .url {
+      display: block; margin-top: 8px;
+      font-size: 12px; font-family: monospace;
+      opacity: 0.4; word-break: break-all;
     }
-    .frame-wrapper iframe {
-      position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%; border: none;
-    }
-    .info {
-      display: flex; align-items: center; gap: 12px;
-      font-size: 12px; opacity: 0.7;
-      padding: 0 4px;
-    }
-    .info a {
-      color: inherit; text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .loading {
-      flex: 1; display: flex; align-items: center;
-      justify-content: center; opacity: 0.5;
-      font-size: 14px;
-    }
-    .hidden { display: none; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div id="loading" class="loading">Building slides&hellip;</div>
-    <div id="viewer" class="hidden">
-      <div class="frame-wrapper">
-        <iframe id="slides-frame" loading="lazy"></iframe>
-      </div>
-    </div>
-    <div id="info" class="info hidden"></div>
+  <div id="loading" class="loading">Building slides&hellip;</div>
+  <div id="card" class="card">
+    <button id="open-btn" class="open-btn">
+      Open Presentation &#x2197;
+    </button>
+    <div id="meta" class="meta"></div>
+    <span id="url" class="url"></span>
   </div>
   <script type="module">
     import { App } from
       "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
 
     const app = new App({ name: "Slidev Viewer", version: "1.0.0" });
+    let slideUrl = null;
 
-    app.ontoolresult = async ({ content }) => {
+    app.ontoolresult = ({ content }) => {
       const text = content?.find(c => c.type === "text");
       if (!text) return;
       let data;
       try { data = JSON.parse(text.text); } catch { return; }
       if (!data.url) return;
 
-      document.getElementById("loading").textContent = "Loading slides\\u2026";
-
-      try {
-        const resp = await fetch(data.url);
-        const html = await resp.text();
-
-        document.getElementById("loading").classList.add("hidden");
-
-        const viewer = document.getElementById("viewer");
-        viewer.classList.remove("hidden");
-        viewer.style.flex = "1";
-        viewer.style.display = "flex";
-        viewer.style.flexDirection = "column";
-        document.querySelector(".frame-wrapper").style.flex = "1";
-
-        document.getElementById("slides-frame").srcdoc = html;
-      } catch (err) {
-        document.getElementById("loading").textContent =
-          "Could not load slides inline. Open in new tab instead.";
-      }
-
-      const info = document.getElementById("info");
-      info.classList.remove("hidden");
-      info.innerHTML =
-        `<a href="${data.url}" target="_blank" rel="noopener">Open in new tab</a>`
-        + `<span>UUID: ${data.uuid}</span>`
+      slideUrl = data.url;
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("card").style.display = "block";
+      document.getElementById("meta").innerHTML =
+        `<span>${data.uuid.slice(0, 8)}</span>`
         + `<span>Built in ${data.build_time_seconds.toFixed(1)}s</span>`;
+      document.getElementById("url").textContent = data.url;
     };
+
+    document.getElementById("open-btn").addEventListener("click", () => {
+      if (slideUrl) {
+        app.openLink({ uri: slideUrl });
+      }
+    });
 
     await app.connect();
   </script>
@@ -275,7 +253,6 @@ _VIEWER_HTML = """\
     app=AppConfig(
         csp=ResourceCSP(
             resource_domains=["https://unpkg.com"],
-            connect_domains=["https://slides.slidev-mcp.org"],
         ),
     ),
 )
