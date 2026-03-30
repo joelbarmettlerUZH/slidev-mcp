@@ -178,6 +178,11 @@ jobs:
           ACME_EMAIL=${{ secrets.ACME_EMAIL }}
           ENVEOF"
 
+      - name: Log in to GHCR on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+
       - name: Pull and restart services
         env:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
