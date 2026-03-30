@@ -37,6 +37,7 @@ services:
       - "traefik.http.routers.health.entrypoints=websecure"
       - "traefik.http.routers.health.tls.certresolver=le"
       - "traefik.http.routers.health.service=mcp"
+      - "traefik.docker.network=slidev-mcp_web"
     mem_limit: 2g
     cpus: 1.0
     logging: *default-logging
