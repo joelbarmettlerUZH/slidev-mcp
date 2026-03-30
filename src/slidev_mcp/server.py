@@ -352,7 +352,21 @@ _VIEWER_HTML = """\
     import { App } from
       "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
 
-    const app = new App({ name: "Slidev Viewer", version: "1.0.0" });
+    const app = new App(
+      { name: "Slidev Viewer", version: "1.0.0" },
+      {},
+      { autoResize: false }
+    );
+
+    function reportSize() {
+      requestAnimationFrame(() => {
+        app.sendSizeChanged({
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        });
+      });
+    }
+
     let slideUrl = null;
     let slideUuid = null;
 
@@ -380,6 +394,8 @@ _VIEWER_HTML = """\
       document.getElementById("meta").innerHTML =
         "<span>" + data.uuid.slice(0, 8) + "</span>"
         + "<span>Built in " + data.build_time_seconds.toFixed(1) + "s</span>";
+
+      reportSize();
     };
 
     document.getElementById("open-btn").addEventListener("click", () => {

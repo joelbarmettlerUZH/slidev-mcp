@@ -392,7 +392,20 @@ def build_gallery_html() -> str:
       });
     }, 3000);
 
-    const app = new App({ name: "Theme Gallery", version: "1.0.0" });
+    const app = new App(
+      { name: "Theme Gallery", version: "1.0.0" },
+      {},
+      { autoResize: false }
+    );
+
+    function reportSize() {
+      requestAnimationFrame(() => {
+        app.sendSizeChanged({
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        });
+      });
+    }
 
     app.ontoolresult = ({ content }) => {
       const text = content?.find(c => c.type === "text");
@@ -411,11 +424,8 @@ def build_gallery_html() -> str:
         renderThemes(allThemes);
       }
 
-      // Force ResizeObserver to re-measure after DOM update.
-      // Without this, the host iframe may retain a stale height.
-      requestAnimationFrame(() => {
-        document.body.style.height = "auto";
-      });
+      // Report actual content size to host after rendering
+      reportSize();
     };
 
     await app.connect();
