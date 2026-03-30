@@ -429,6 +429,7 @@ def build_gallery_html() -> str:
     };
 
     await app.connect();
+    reportSize();
   </script>
 </body>
 </html>"""
