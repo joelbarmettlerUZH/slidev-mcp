@@ -311,14 +311,16 @@ _VIEWER_HTML = """\
       margin-top: 10px; gap: 12px;
     }
     .open-btn {
-      padding: 10px 24px;
-      background: rgba(128,128,128,0.12); color: inherit;
-      border: 1px solid rgba(128,128,128,0.25);
-      border-radius: 8px;
-      font-size: 14px; font-weight: 600;
-      cursor: pointer; transition: background 0.2s;
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 32px; padding: 0 12px; min-width: 4rem;
+      background: transparent; color: inherit;
+      border: 0.5px solid rgba(128,128,128,0.3);
+      border-radius: 6px;
+      font-size: 12px; font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer; transition: background 0.1s;
     }
-    .open-btn:hover { background: rgba(128,128,128,0.22); }
+    .open-btn:hover { background: rgba(128,128,128,0.1); }
     .meta { font-size: 12px; opacity: 0.45; }
     .meta span + span::before { content: " · "; }
     .hidden { display: none; }
