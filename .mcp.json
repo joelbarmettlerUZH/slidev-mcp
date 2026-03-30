@@ -1,8 +1,12 @@
 {
   "mcpServers": {
-    "slidev-mcp": {
+    "local-slidev-mcp": {
       "type": "http",
       "url": "https://127.0.0.1.nip.io/mcp"
+    },
+    "remote-slidev-mcp": {
+      "type": "http",
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }

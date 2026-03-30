@@ -47,7 +47,7 @@ services:
   builder:
     image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettleruzh/slidev-mcp}/slidev-mcp-builder:${IMAGE_TAG:-latest}
     container_name: builder
-    networks: [isolated]
+    networks: [isolated, builder-egress]
     volumes:
       - slides-data:/data/slides
     user: "1000:1000"
@@ -129,3 +129,6 @@ networks:
   internal:
   isolated:
     internal: true
+  builder-egress:
+    # Outbound internet for builder (fonts, images during Playwright export).
+    # Builder has no exposed ports — only outbound connections are possible.

@@ -43,7 +43,7 @@ services:
       context: ./builder
       dockerfile: Dockerfile
     container_name: builder
-    networks: [isolated]
+    networks: [isolated, builder-egress]
     volumes:
       - slides-data:/data/slides
     user: "1000:1000"
@@ -123,3 +123,4 @@ networks:
   internal:
   isolated:
     internal: true
+  builder-egress:

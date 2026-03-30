@@ -34,7 +34,7 @@ MCP Client ──MCP/HTTP──▶ MCP Server (Python/FastMCP)
 **Key design decisions:**
 - Builder communicates via HTTP (port 3000), not Docker socket — no socket mount, no proxy needed
 - Each theme is a separate Bun project with its own `package.json`, `node_modules`, and Slidev version
-- Builder has no network access (`isolated` network with `internal: true`), non-root user, `no-new-privileges`
+- Builder has outbound internet (`builder-egress` network) for fonts/images during Playwright export, plus `isolated` for MCP server communication. Non-root user, `no-new-privileges`
 - Slides use hash-based routing (`routerMode: hash`) so nginx serves static files without SPA fallback
 - No base `docker-compose.yml` — each environment file is self-contained
 
@@ -276,7 +276,7 @@ Job 3: deploy
 
 ## Security
 
-- **Builder network isolation:** `isolated` network with `internal: true` — no internet access
+- **Builder network:** `isolated` (internal, for MCP server communication) + `builder-egress` (outbound internet for fonts/images during Playwright export). No exposed ports — only outbound connections possible.
 - **Builder hardening:** Non-root user (uid 1000), `no-new-privileges`, resource limits (2 CPU, 2GB RAM)
 - **No Docker socket:** Builder communicates via HTTP, not docker exec. No socket mount anywhere.
 - **Theme allowlist:** Only pre-installed themes. Theme names validated with `^[a-z0-9-]+$` regex + allowlist check.
@@ -291,7 +291,7 @@ Job 3: deploy
 - Add FastAPI, Flask, or any web framework. FastMCP handles the server.
 - Allow dynamic `bun install` of themes not in the allowlist. Ever.
 - Run `bun install` at build time inside the running builder. `node_modules` is baked into the image.
-- Give the builder container network access.
+- Expose builder ports or give it inbound network access. Outbound egress for fonts/images is OK.
 - Accept user-supplied UUIDs without UUID v4 format validation (path traversal risk).
 - Trust theme names from user input without allowlist + regex validation.
 - Serve slides from the same origin as the MCP API in production. Use `SLIDES_DOMAIN`.
