@@ -4,8 +4,10 @@ from typing import Annotated, Any
 
 from pydantic import Field
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator
+from slidev_mcp.config import Settings
 from slidev_mcp.errors import (
     InvalidUuid,
     UuidForeign,
@@ -30,7 +32,7 @@ async def render_slides(
     session_id: str,
     session_map: SessionMap,
     builder: BuildOrchestrator,
-    db_session_factory: Any,
+    db_session_factory: async_sessionmaker[AsyncSession],
 ) -> dict[str, Any]:
     """Render a Slidev presentation from markdown.
 
@@ -93,8 +95,8 @@ async def render_slides(
 async def list_session_slides(
     *,
     session_id: str,
-    db_session_factory: Any,
-    settings: Any,
+    db_session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
 ) -> dict[str, Any]:
     """List all slides created in the current session."""
     async with db_session_factory() as session:

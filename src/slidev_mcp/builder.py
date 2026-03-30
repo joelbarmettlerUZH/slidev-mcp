@@ -1,5 +1,6 @@
 import logging
 import re
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -12,34 +13,21 @@ THEME_NAME_PATTERN = re.compile(r"^[a-z0-9-]+$")
 MAX_MARKDOWN_SIZE = 1_000_000  # 1 MB
 
 
+@dataclass(frozen=True, slots=True)
 class BuildResult:
-    def __init__(
-        self,
-        uuid: str,
-        url: str,
-        build_time_seconds: float,
-        html: str = "",
-        preview_base64: str = "",
-    ) -> None:
-        self.uuid = uuid
-        self.url = url
-        self.build_time_seconds = build_time_seconds
-        self.html = html
-        self.preview_base64 = preview_base64
+    uuid: str
+    url: str
+    build_time_seconds: float
+    html: str = ""
+    preview_base64: str = ""
 
 
+@dataclass(frozen=True, slots=True)
 class ExportResult:
-    def __init__(
-        self,
-        uuid: str,
-        export_time_seconds: float,
-        url: str = "",
-        images_base64: list[str] | None = None,
-    ) -> None:
-        self.uuid = uuid
-        self.url = url
-        self.export_time_seconds = export_time_seconds
-        self.images_base64 = images_base64 or []
+    uuid: str
+    export_time_seconds: float
+    url: str = ""
+    images_base64: list[str] = field(default_factory=list)
 
 
 class BuildOrchestrator:

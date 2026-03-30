@@ -10,10 +10,15 @@ from pathlib import Path
 from typing import Annotated
 
 from fastmcp import Context, FastMCP
+from fastmcp.dependencies import CurrentContext
+from fastmcp.exceptions import ToolError
 from fastmcp.server.apps import AppConfig, ResourceCSP
 from fastmcp.server.lifespan import lifespan
+from fastmcp.server.middleware.logging import StructuredLoggingMiddleware
+from fastmcp.server.middleware.timing import TimingMiddleware
 from fastmcp.tools import ToolResult
 from mcp import types as mcp_types
+from mcp.types import Icon
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -29,6 +34,83 @@ from slidev_mcp.tools import list_session_slides as _list_session_slides
 from slidev_mcp.tools import render_slides as _render_slides
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Icons (monochrome SVG, base64-encoded data URIs)
+# ---------------------------------------------------------------------------
+_SVG_MIME = "image/svg+xml"
+
+_ICON_SERVER = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjIiIHk9IjMiIHdpZHRo"
+        "PSIyMCIgaGVpZ2h0PSIxNCIgcng9IjIiLz48bGluZSB4MT0iOCIgeTE9IjIxIiB4Mj0iMTYiIH"
+        "kyPSIyMSIvPjxsaW5lIHgxPSIxMiIgeTE9IjE3IiB4Mj0iMTIiIHkyPSIyMSIvPjwvc3ZnPg=="
+    ),
+    mimeType=_SVG_MIME,
+)
+_ICON_RENDER = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIi"
+        "IHI9IjEwIi8+PHBvbHlnb24gcG9pbnRzPSIxMCA4IDE2IDEyIDEwIDE2IDEwIDgiLz48L3N2Zz4="
+    ),
+    mimeType=_SVG_MIME,
+)
+_ICON_THEME = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEzLjUiIGN5PSI2"
+        "LjUiIHI9IjIuNSIvPjxjaXJjbGUgY3g9IjE3LjUiIGN5PSIxMC41IiByPSIyLjUiLz48Y2lyY2"
+        "xlIGN4PSI4LjUiIGN5PSI3LjUiIHI9IjIuNSIvPjxjaXJjbGUgY3g9IjYuNSIgY3k9IjEyLjUi"
+        "IHI9IjIuNSIvPjxwYXRoIGQ9Ik0xMiAyQzYuNSAyIDIgNi41IDIgMTJzNC41IDEwIDEwIDEwYy"
+        "45IDAgMS43LS44IDEuNy0xLjcgMC0uNS0uMi0uOS0uNS0xLjItLjMtLjMtLjUtLjctLjUtMS4y"
+        "IDAtLjkuOC0xLjcgMS43LTEuN0gxNmMzLjMgMCA2LTIuNyA2LTYgMC01LjUtNC41LTkuOC0xMC"
+        "05Ljh6Ii8+PC9zdmc+"
+    ),
+    mimeType=_SVG_MIME,
+)
+_ICON_EXPORT = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMSAxNXY0YTIgMiAw"
+        "IDAgMS0yIDJINWEyIDIgMCAwIDEtMi0ydi00Ii8+PHBvbHlsaW5lIHBvaW50cz0iNyAxMCAxMi"
+        "AxNSAxNyAxMCIvPjxsaW5lIHgxPSIxMiIgeTE9IjE1IiB4Mj0iMTIiIHkyPSIzIi8+PC9zdmc+"
+    ),
+    mimeType=_SVG_MIME,
+)
+_ICON_GUIDE = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik00IDE5LjVBMi41IDIu"
+        "NSAwIDAgMSA2LjUgMTdIMjAiLz48cGF0aCBkPSJNNi41IDJIMjB2MjBINi41QTIuNSAyLjUgMC"
+        "AwIDEgNCAxOS41di0xNUEyLjUgMi41IDAgMCAxIDYuNSAyeiIvPjwvc3ZnPg=="
+    ),
+    mimeType=_SVG_MIME,
+)
+_ICON_SESSION = Icon(
+    src=(
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdm"
+        "ciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25l"
+        "IiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD"
+        "0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxsaW5lIHgxPSI4IiB5MT0iNiIgeDI9"
+        "IjIxIiB5Mj0iNiIvPjxsaW5lIHgxPSI4IiB5MT0iMTIiIHgyPSIyMSIgeTI9IjEyIi8+PGxp"
+        "bmUgeDE9IjgiIHkxPSIxOCIgeDI9IjIxIiB5Mj0iMTgiLz48bGluZSB4MT0iMyIgeTE9IjYiIH"
+        "gyPSIzLjAxIiB5Mj0iNiIvPjxsaW5lIHgxPSIzIiB5MT0iMTIiIHgyPSIzLjAxIiB5Mj0iMTIi"
+        "Lz48bGluZSB4MT0iMyIgeTE9IjE4IiB4Mj0iMy4wMSIgeTI9IjE4Ii8+PC9zdmc+"
+    ),
+    mimeType=_SVG_MIME,
+)
 
 
 class _JSONFormatter(logging.Formatter):
@@ -64,6 +146,21 @@ def _configure_logging(settings: Settings) -> None:
 
     root.handlers.clear()
     root.addHandler(handler)
+
+
+@dataclass
+class LifespanState:
+    """Typed container for lifespan-managed dependencies."""
+
+    settings: Settings
+    db_session_factory: async_sessionmaker[AsyncSession]
+    session_map: SessionMap
+    builder: BuildOrchestrator
+    resources: dict[str, str]
+
+
+# Module-level state for the health endpoint (set during lifespan)
+_state: LifespanState | None = None
 
 
 async def _gc_loop(
@@ -129,19 +226,20 @@ async def app_lifespan(server: FastMCP):
         )
     )
 
-    ctx = {
-        "settings": settings,
-        "db_session_factory": db_session_factory,
-        "session_map": session_map,
-        "builder": builder,
-        "resources": resources,
-    }
-    # Store on the mcp instance so the health endpoint can access it
-    mcp._lifespan_context = ctx  # type: ignore[attr-defined]
+    global _state
+    state = LifespanState(
+        settings=settings,
+        db_session_factory=db_session_factory,
+        session_map=session_map,
+        builder=builder,
+        resources=resources,
+    )
+    _state = state
 
     try:
-        yield ctx
+        yield state
     finally:
+        _state = None
         gc_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await gc_task
@@ -151,14 +249,20 @@ async def app_lifespan(server: FastMCP):
 
 mcp = FastMCP(
     name="Slidev MCP",
+    version="0.1.0",
     instructions=(
         "This server generates, renders, and hosts Slidev presentations from markdown. "
         "Read the available resources to learn Slidev syntax, themes, and examples, "
         "then use render_slides to create a presentation."
     ),
+    icons=[_ICON_SERVER],
     lifespan=app_lifespan,
+    on_duplicate="warn",
+    middleware=[
+        StructuredLoggingMiddleware(),
+        TimingMiddleware(),
+    ],
 )
-mcp._lifespan_context = None  # type: ignore[attr-defined]
 
 # ---------------------------------------------------------------------------
 # MCP App: Slide Viewer
@@ -319,9 +423,8 @@ async def health_check(request):
 
     # Check database
     try:
-        lc = mcp._lifespan_context
-        if lc and "db_session_factory" in lc:
-            async with lc["db_session_factory"]() as session:
+        if _state is not None:
+            async with _state.db_session_factory() as session:
                 await session.execute(text("SELECT 1"))
             status["checks"]["database"] = "ok"
         else:
@@ -332,8 +435,8 @@ async def health_check(request):
 
     # Check builder connectivity
     try:
-        if lc and "builder" in lc:
-            resp = await lc["builder"]._client.get("/health")
+        if _state is not None:
+            resp = await _state.builder._client.get("/health")
             status["checks"]["builder"] = resp.json() if resp.status_code == 200 else "unhealthy"
         else:
             status["checks"]["builder"] = "unavailable"
@@ -370,6 +473,9 @@ class SessionSlides:
         "idempotentHint": False,
         "openWorldHint": False,
     },
+    tags={"rendering", "write"},
+    icons=[_ICON_RENDER],
+    timeout=130,
     app=AppConfig(resourceUri=_VIEWER_URI),
 )
 async def render_slides(
@@ -388,7 +494,7 @@ async def render_slides(
         "UUID of an existing presentation to update in-place (same URL). "
         "Omit to create a new presentation.",
     ] = None,
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Render a Slidev presentation from markdown and return its hosted URL.
 
@@ -402,20 +508,27 @@ async def render_slides(
 
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
     """
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
     markdown_size = len(markdown.encode("utf-8"))
 
     try:
+        await ctx.report_progress(0, 3, "Validating input")
+        await ctx.info(f"Building presentation with theme '{theme}'...")
+
+        await ctx.report_progress(1, 3, "Building presentation")
         result = await _render_slides(
             markdown=markdown,
             theme=theme,
             uuid=uuid,
             session_id=session_id,
-            session_map=lc["session_map"],
-            builder=lc["builder"],
-            db_session_factory=lc["db_session_factory"],
+            session_map=state.session_map,
+            builder=state.builder,
+            db_session_factory=state.db_session_factory,
         )
+
+        await ctx.report_progress(2, 3, "Preparing response")
+        await ctx.info(f"Built {result['uuid']} in {result['build_time_seconds']:.1f}s")
         logger.info(
             "render_slides succeeded",
             extra={
@@ -433,8 +546,10 @@ async def render_slides(
         ]
         if preview:
             content.append(mcp_types.ImageContent(type="image", data=preview, mimeType="image/png"))
+        await ctx.report_progress(3, 3, "Done")
         return ToolResult(content=content)
     except SlidevMcpError as e:
+        await ctx.warning(f"Render failed: [{e.code}] {e.message}")
         logger.warning(
             "render_slides failed: %s",
             e.code,
@@ -445,7 +560,7 @@ async def render_slides(
                 "success": False,
             },
         )
-        raise ValueError(f"[{e.code}] {e.message}") from None
+        raise ToolError(f"[{e.code}] {e.message}") from None
 
 
 @mcp.tool(
@@ -454,19 +569,22 @@ async def render_slides(
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"session", "read-only"},
+    icons=[_ICON_SESSION],
+    timeout=10,
 )
-async def list_session_slides(ctx: Context) -> SessionSlides:
+async def list_session_slides(ctx: Context = CurrentContext()) -> SessionSlides:
     """List all slide presentations created in the current MCP session.
 
     Returns URLs, themes, and timestamps for each presentation you've created.
     """
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
 
     result = await _list_session_slides(
         session_id=session_id,
-        db_session_factory=lc["db_session_factory"],
-        settings=lc["settings"],
+        db_session_factory=state.db_session_factory,
+        settings=state.settings,
     )
     return SessionSlides(
         slides=[SlideInfo(**s) for s in result["slides"]],
@@ -479,8 +597,11 @@ async def list_session_slides(ctx: Context) -> SessionSlides:
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"themes", "read-only"},
+    icons=[_ICON_THEME],
+    timeout=5,
 )
-async def list_themes(ctx: Context) -> str:
+async def list_themes(ctx: Context = CurrentContext()) -> str:
     """Get a list of all available themes with style descriptions and recommendations.
 
     Call this to decide which theme to use. Returns a guide organized by style
@@ -492,12 +613,11 @@ async def list_themes(ctx: Context) -> str:
     This tool does NOT display anything to the user — it is for your own
     reference when choosing a theme.
     """
-    lc = ctx.lifespan_context
-    resources = lc.get("resources", {})
-    guide = resources.get("slidev://themes/guide", "")
+    state: LifespanState = ctx.lifespan_context
+    guide = state.resources.get("slidev://themes/guide", "")
     if guide:
         return guide
-    return resources.get("slidev://themes/installed", "No theme data available.")
+    return state.resources.get("slidev://themes/installed", "No theme data available.")
 
 
 @mcp.tool(
@@ -506,6 +626,9 @@ async def list_themes(ctx: Context) -> str:
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"themes", "read-only", "visual"},
+    icons=[_ICON_THEME],
+    timeout=5,
     app=AppConfig(resourceUri=_GALLERY_URI),
 )
 async def browse_themes(
@@ -515,7 +638,7 @@ async def browse_themes(
         "If omitted, all themes are shown. Use list_themes first to find matching "
         "themes, then pass the filtered names here.",
     ] = None,
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Show the user a visual theme gallery with preview images.
 
@@ -538,6 +661,9 @@ async def browse_themes(
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"themes", "read-only"},
+    icons=[_ICON_THEME],
+    timeout=5,
 )
 async def get_theme(
     theme: Annotated[
@@ -548,7 +674,7 @@ async def get_theme(
         "neocarbon, neversink, nord, penguin, purplin, scholarly, "
         "swiss-ai-hub, the-unnamed, unicorn, vibe, vuetiful, zhozhoba.",
     ],
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> str:
     """Get full documentation for a specific theme: layouts, components, and examples.
 
@@ -559,14 +685,12 @@ async def get_theme(
     This is the primary tool for preparing to render slides. When the user
     specifies a theme, call this directly — no need to call browse_themes.
     """
-    lc = ctx.lifespan_context
-    resources = lc.get("resources", {})
+    state: LifespanState = ctx.lifespan_context
     uri = f"slidev://themes/{theme}"
-    content = resources.get(uri)
+    content = state.resources.get(uri)
     if content:
         return content
-    # Check if theme exists at all
-    installed = resources.get("slidev://themes/installed", "")
+    installed = state.resources.get("slidev://themes/installed", "")
     if f"`{theme}`" in installed:
         return f"Theme '{theme}' is installed but has no detailed documentation."
     return f"Theme '{theme}' not found. Call browse_themes to see available themes."
@@ -578,28 +702,30 @@ async def get_theme(
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"guide", "read-only"},
+    icons=[_ICON_GUIDE],
+    timeout=5,
 )
-async def get_slidev_guide(ctx: Context) -> str:
+async def get_slidev_guide(ctx: Context = CurrentContext()) -> str:
     """Get the Slidev syntax guide: how to write slides in markdown.
 
     Returns the official Slidev syntax reference (frontmatter, slide separators,
     speaker notes, layouts, code blocks) plus built-in layout documentation and
     an example deck. Call this once to learn how to write Slidev presentations.
     """
-    lc = ctx.lifespan_context
-    resources = lc.get("resources", {})
+    state: LifespanState = ctx.lifespan_context
 
     parts = []
 
-    syntax = resources.get("slidev://guide/syntax")
+    syntax = state.resources.get("slidev://guide/syntax")
     if syntax:
         parts.append("# Slidev Syntax Guide\n\n" + syntax)
 
-    layouts = resources.get("slidev://builtin/layouts")
+    layouts = state.resources.get("slidev://builtin/layouts")
     if layouts:
         parts.append("\n\n# Built-in Layouts\n\n" + layouts)
 
-    example = resources.get("slidev://examples/minimal")
+    example = state.resources.get("slidev://examples/minimal")
     if example:
         parts.append("\n\n# Example Deck\n\n" + example)
 
@@ -614,33 +740,34 @@ async def get_slidev_guide(ctx: Context) -> str:
         "readOnlyHint": False,
         "openWorldHint": False,
     },
+    tags={"export", "write"},
+    icons=[_ICON_EXPORT],
+    timeout=190,
 )
 async def export_slides(
     uuid: Annotated[
         str,
         "UUID of the presentation to export. Must be from the current session.",
     ],
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Export a presentation as a downloadable PDF.
 
     The presentation must have been created in the current session.
     Returns a URL to download the PDF.
     """
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
-    builder = lc["builder"]
-    session_map = lc["session_map"]
 
-    # Verify UUID ownership
-    if not session_map.owns(uuid, session_id):
-        raise ValueError("[uuid_foreign] UUID does not belong to this session")
+    await ctx.report_progress(0, 3, "Verifying session ownership")
 
-    # Get latest markdown and theme from DB
-    async with lc["db_session_factory"]() as session:
+    if not state.session_map.owns(uuid, session_id):
+        raise ToolError("[uuid_foreign] UUID does not belong to this session")
+
+    async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
         if slide is None:
-            raise ValueError("[not_found] Slide not found")
+            raise ToolError("[not_found] Slide not found")
 
         latest_version = await session.scalar(
             select(SlideVersion.markdown)
@@ -650,10 +777,14 @@ async def export_slides(
         )
 
     if not latest_version:
-        raise ValueError("[not_found] No markdown version found for slide")
+        raise ToolError("[not_found] No markdown version found for slide")
 
     try:
-        result = await builder.export(latest_version, slide.theme, uuid)
+        await ctx.report_progress(1, 3, "Exporting to PDF")
+        await ctx.info(f"Exporting {uuid} to PDF...")
+        result = await state.builder.export(latest_version, slide.theme, uuid)
+        await ctx.report_progress(3, 3, "Export complete")
+        await ctx.info(f"Exported {uuid} in {result.export_time_seconds:.1f}s")
         return ToolResult(
             content=json.dumps(
                 {
@@ -664,7 +795,8 @@ async def export_slides(
             )
         )
     except SlidevMcpError as e:
-        raise ValueError(f"[{e.code}] {e.message}") from None
+        await ctx.warning(f"Export failed: [{e.code}] {e.message}")
+        raise ToolError(f"[{e.code}] {e.message}") from None
 
 
 @mcp.tool(
@@ -673,13 +805,16 @@ async def export_slides(
         "readOnlyHint": True,
         "openWorldHint": False,
     },
+    tags={"export", "read-only", "visual"},
+    icons=[_ICON_EXPORT],
+    timeout=190,
 )
 async def screenshot_slides(
     uuid: Annotated[
         str,
         "UUID of the presentation to screenshot.",
     ],
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Render all slides as PNG images and return them.
 
@@ -687,18 +822,18 @@ async def screenshot_slides(
     slide so you can see exactly what each slide looks like and give
     specific feedback.
     """
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
-    builder = lc["builder"]
-    session_map = lc["session_map"]
 
-    if not session_map.owns(uuid, session_id):
-        raise ValueError("[uuid_foreign] UUID does not belong to this session")
+    await ctx.report_progress(0, 3, "Verifying session ownership")
 
-    async with lc["db_session_factory"]() as session:
+    if not state.session_map.owns(uuid, session_id):
+        raise ToolError("[uuid_foreign] UUID does not belong to this session")
+
+    async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
         if slide is None:
-            raise ValueError("[not_found] Slide not found")
+            raise ToolError("[not_found] Slide not found")
 
         latest_version = await session.scalar(
             select(SlideVersion.markdown)
@@ -708,10 +843,13 @@ async def screenshot_slides(
         )
 
     if not latest_version:
-        raise ValueError("[not_found] No markdown version found")
+        raise ToolError("[not_found] No markdown version found")
 
     try:
-        result = await builder.export(latest_version, slide.theme, uuid, fmt="png")
+        await ctx.report_progress(1, 3, "Rendering slide screenshots")
+        await ctx.info(f"Screenshotting {uuid}...")
+        result = await state.builder.export(latest_version, slide.theme, uuid, fmt="png")
+        await ctx.report_progress(3, 3, "Screenshots complete")
         content: list = []
         for img_b64 in result.images_base64:
             content.append(
@@ -725,17 +863,17 @@ async def screenshot_slides(
             return ToolResult(content="No screenshots generated.")
         return ToolResult(content=content)
     except SlidevMcpError as e:
-        raise ValueError(f"[{e.code}] {e.message}") from None
+        await ctx.warning(f"Screenshot failed: [{e.code}] {e.message}")
+        raise ToolError(f"[{e.code}] {e.message}") from None
 
 
-@mcp.resource("slides://session")
-async def session_slides_resource(ctx: Context) -> str:
+@mcp.resource("slides://session", tags={"session"}, icons=[_ICON_SESSION])
+async def session_slides_resource(ctx: Context = CurrentContext()) -> str:
     """All slides created in the current MCP session with themes, URLs, and markdown."""
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
-    settings = lc["settings"]
 
-    async with lc["db_session_factory"]() as session:
+    async with state.db_session_factory() as session:
         result = await session.execute(select(Slide).where(Slide.session_id == session_id))
         slides = result.scalars().all()
 
@@ -752,7 +890,7 @@ async def session_slides_resource(ctx: Context) -> str:
                 .select_from(SlideVersion)
                 .where(SlideVersion.slide_uuid == slide.uuid)
             )
-            host = settings.slides_domain or settings.domain
+            host = state.settings.slides_domain or state.settings.domain
             entries.append(
                 f"## {slide.uuid}\n\n"
                 f"- **Theme:** {slide.theme}\n"
@@ -766,14 +904,13 @@ async def session_slides_resource(ctx: Context) -> str:
     return "# Session Slides\n\n" + "\n\n---\n\n".join(entries)
 
 
-@mcp.resource("slides://session/{uuid}")
-async def slide_detail_resource(uuid: str, ctx: Context) -> str:
+@mcp.resource("slides://session/{uuid}", tags={"session"}, icons=[_ICON_SESSION])
+async def slide_detail_resource(uuid: str, ctx: Context = CurrentContext()) -> str:
     """Details for a specific slide: theme, markdown, URL, and version history."""
-    lc = ctx.lifespan_context
+    state: LifespanState = ctx.lifespan_context
     session_id = ctx.session_id or ctx.client_id or "unknown"
-    settings = lc["settings"]
 
-    async with lc["db_session_factory"]() as session:
+    async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
         if slide is None:
             return f"Slide `{uuid}` not found."
@@ -787,7 +924,7 @@ async def slide_detail_resource(uuid: str, ctx: Context) -> str:
         )
         version_list = versions_result.scalars().all()
 
-    host = settings.slides_domain or settings.domain
+    host = state.settings.slides_domain or state.settings.domain
     latest = version_list[0] if version_list else None
 
     output = f"# Slide {uuid}\n\n"
@@ -809,6 +946,28 @@ async def slide_detail_resource(uuid: str, ctx: Context) -> str:
     return output
 
 
+def _uri_to_tags(uri: str) -> set[str]:
+    """Derive resource tags from URI prefix."""
+    if uri.startswith("slidev://guide/") or uri.startswith("slidev://builtin/"):
+        return {"guide"}
+    if uri.startswith("slidev://themes/"):
+        return {"themes"}
+    if uri.startswith("slidev://examples/"):
+        return {"examples"}
+    return set()
+
+
+def _uri_to_icons(uri: str) -> list[Icon]:
+    """Derive resource icons from URI prefix."""
+    if uri.startswith("slidev://guide/") or uri.startswith("slidev://builtin/"):
+        return [_ICON_GUIDE]
+    if uri.startswith("slidev://themes/"):
+        return [_ICON_THEME]
+    if uri.startswith("slidev://examples/"):
+        return [_ICON_GUIDE]
+    return []
+
+
 def _register_resources(mcp_server: FastMCP, resources: dict[str, str]) -> None:
     """Register loaded resource content as FastMCP resources."""
     from fastmcp.resources import TextResource
@@ -819,8 +978,58 @@ def _register_resources(mcp_server: FastMCP, resources: dict[str, str]) -> None:
             name=uri,
             text=content,
             mime_type="text/markdown",
+            tags=_uri_to_tags(uri),
+            icons=_uri_to_icons(uri),
         )
         mcp_server.add_resource(resource)
+
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt(
+    title="Create Presentation",
+    tags={"rendering"},
+    icons=[_ICON_RENDER],
+)
+def create_presentation(
+    topic: Annotated[str, "The topic for the presentation"],
+    style: Annotated[
+        str, "Preferred visual style (e.g. 'professional', 'playful', 'academic')"
+    ] = "professional",
+    slide_count: Annotated[str, "Approximate number of slides"] = "10",
+) -> str:
+    """Guided workflow for creating a new Slidev presentation."""
+    return (
+        f'Create a Slidev presentation about "{topic}" with approximately '
+        f"{slide_count} slides in a {style} style.\n\n"
+        "Steps:\n"
+        f'1. Call list_themes to find a theme matching the "{style}" style\n'
+        "2. Call get_theme with the chosen theme name to read its full documentation\n"
+        "3. Call get_slidev_guide if you need a Slidev syntax refresher\n"
+        "4. Write the markdown using the theme's layouts, components, and features\n"
+        "5. Call render_slides with the markdown and theme name"
+    )
+
+
+@mcp.prompt(
+    title="Review and Improve Presentation",
+    tags={"export", "visual"},
+    icons=[_ICON_EXPORT],
+)
+def review_presentation(
+    uuid: Annotated[str, "UUID of the presentation to review"],
+) -> str:
+    """Guided workflow for visually reviewing and improving an existing presentation."""
+    return (
+        f"Review the presentation {uuid}:\n\n"
+        "1. Call screenshot_slides to see all slides as images\n"
+        "2. Analyze each slide for design quality, content clarity, and flow\n"
+        "3. Suggest specific improvements (layout choices, content edits, visual balance)\n"
+        "4. Offer to re-render with the improvements applied"
+    )
 
 
 # Resources are registered at startup via lifespan.

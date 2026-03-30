@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 ALLOWED_THEMES: list[str] = [
@@ -33,18 +34,76 @@ ALLOWED_THEMES: list[str] = [
 class Settings(BaseSettings):
     model_config = {"env_prefix": "", "env_file": ".env", "extra": "ignore"}
 
-    domain: str = "localhost"
-    slides_domain: str = ""
-    database_url: str = "postgresql+asyncpg://slidev:slidev@localhost:5432/slidev"
-    slides_dir: str = "/data/slides"
-    builder_host: str = "builder"
-    builder_port: int = 3000
-    build_timeout: int = 120
-    max_concurrent_builds: int = 3
-    slide_ttl_days: int = 30
-    gc_interval_hours: int = 6
-    server_transport: str = "stdio"
-    server_host: str = "0.0.0.0"
-    server_port: int = 8000
-    log_level: str = "INFO"
-    log_format: str = "json"
+    domain: str = Field(
+        default="localhost",
+        description="Public domain for the MCP API endpoint",
+    )
+    slides_domain: str = Field(
+        default="",
+        description="Separate domain for serving slides (origin isolation). Falls back to domain.",
+    )
+    database_url: str = Field(
+        default="postgresql+asyncpg://slidev:slidev@localhost:5432/slidev",
+        description="PostgreSQL async connection string",
+    )
+    slides_dir: str = Field(
+        default="/data/slides",
+        description="Directory where built slide decks are stored",
+    )
+    builder_host: str = Field(
+        default="builder",
+        description="Hostname of the builder HTTP service",
+    )
+    builder_port: int = Field(
+        default=3000,
+        ge=1,
+        le=65535,
+        description="Port of the builder HTTP service",
+    )
+    build_timeout: int = Field(
+        default=120,
+        ge=10,
+        le=600,
+        description="Maximum seconds allowed for a single slide build",
+    )
+    max_concurrent_builds: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Maximum number of parallel builds",
+    )
+    slide_ttl_days: int = Field(
+        default=30,
+        ge=1,
+        description="Days before sealed slides are garbage-collected",
+    )
+    gc_interval_hours: int = Field(
+        default=6,
+        ge=1,
+        description="Hours between garbage-collection runs",
+    )
+    server_transport: str = Field(
+        default="stdio",
+        pattern=r"^(stdio|streamable-http)$",
+        description="MCP transport protocol: 'stdio' or 'streamable-http'",
+    )
+    server_host: str = Field(
+        default="0.0.0.0",
+        description="Bind address for HTTP transport",
+    )
+    server_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="Bind port for HTTP transport",
+    )
+    log_level: str = Field(
+        default="INFO",
+        pattern=r"^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$",
+        description="Python log level",
+    )
+    log_format: str = Field(
+        default="json",
+        pattern=r"^(json|text)$",
+        description="Log output format: 'json' or 'text'",
+    )
