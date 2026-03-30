@@ -312,12 +312,13 @@ _VIEWER_HTML = """\
     }
     .open-btn {
       padding: 10px 24px;
-      background: #2563eb; color: #fff;
-      border: none; border-radius: 8px;
+      background: rgba(128,128,128,0.12); color: inherit;
+      border: 1px solid rgba(128,128,128,0.25);
+      border-radius: 8px;
       font-size: 14px; font-weight: 600;
       cursor: pointer; transition: background 0.2s;
     }
-    .open-btn:hover { background: #1d4ed8; }
+    .open-btn:hover { background: rgba(128,128,128,0.22); }
     .meta { font-size: 12px; opacity: 0.45; }
     .meta span + span::before { content: " · "; }
     .hidden { display: none; }
@@ -370,10 +371,10 @@ _VIEWER_HTML = """\
     };
 
     document.getElementById("open-btn").addEventListener("click", () => {
-      if (slideUrl) app.openLink({ uri: slideUrl });
+      if (slideUrl) app.openLink({ url: slideUrl });
     });
     document.getElementById("preview").addEventListener("click", () => {
-      if (slideUrl) app.openLink({ uri: slideUrl });
+      if (slideUrl) app.openLink({ url: slideUrl });
     });
 
     await app.connect();
