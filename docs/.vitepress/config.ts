@@ -13,12 +13,14 @@ export default defineConfig({
       "link",
       {
         rel: "icon",
-        href: "https://cdn.jsdelivr.net/gh/slidevjs/slidev/assets/favicon.png",
+        href: "/slidev-mcp-logo.png",
       },
     ],
   ],
 
   themeConfig: {
+    logo: "/slidev-mcp-logo.png",
+
     nav: [
       { text: "Guide", link: "/guide/what-is-slidev-mcp" },
       { text: "Clients", link: "/clients/" },

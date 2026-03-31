@@ -12,6 +12,10 @@ wheels/
 .env.production
 .env.local
 
+# MCP registry auth tokens
+.mcpregistry_github_token
+.mcpregistry_registry_token
+
 # Vendor (created by make bootstrap)
 vendor/
 
@@ -38,3 +42,4 @@ builder/themes/
 # OS
 .DS_Store
 Thumbs.db
+

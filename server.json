@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.joelbarmettlerUZH/slidev-mcp",
+  "title": "Slidev MCP",
+  "description": "Generate, render, and host Slidev presentations from markdown",
+  "version": "1.0.0",
+  "websiteUrl": "https://slidev-mcp.org",
+  "icons": [
+    {
+      "src": "https://slidev-mcp.org/slidev-mcp-logo.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/joelbarmettlerUZH/slidev-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.slidev-mcp.org/mcp"
+    }
+  ]
+}

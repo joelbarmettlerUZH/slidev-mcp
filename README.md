@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/slidevjs/slidev/assets/favicon.png" width="80" alt="Slidev MCP">
+  <img src="docs/public/slidev-mcp-logo.png" width="80" alt="Slidev MCP">
 </p>
 
 <h1 align="center">Slidev MCP</h1>
