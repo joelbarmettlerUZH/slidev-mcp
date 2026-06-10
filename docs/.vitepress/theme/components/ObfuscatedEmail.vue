@@ -5,7 +5,7 @@ import { ref, onMounted } from 'vue'
 // in the server-rendered HTML. It is decoded in the browser on mount, which
 // defeats the regex-based scrapers that only read static markup.
 // Encoding: reverse(base64(email)). Decoding: base64(reverse(blob)).
-const blob = 'l1mLu9GdvJHcAJXZsRHdl1mchJma'
+const blob = '=UWbu0GcAV2YhB3c05WZ0FGb'
 
 const address = ref('')
 
