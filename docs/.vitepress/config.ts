@@ -76,6 +76,12 @@ export default defineConfig({
         link: "https://github.com/joelbarmettlerUZH/slidev-mcp",
       },
     ],
+
+    footer: {
+      message:
+        'Operated by LatentSpace Labs GmbH · <a href="/impressum">Legal Notice</a>',
+      copyright: `© ${new Date().getFullYear()} LatentSpace Labs GmbH`,
+    },
   },
 
   vite: {
