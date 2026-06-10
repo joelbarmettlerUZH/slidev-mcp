@@ -29,7 +29,7 @@ liability company under Swiss law)
 
 ## Contact
 
-**Email:** [joel.barmettler@gmail.com](mailto:joel.barmettler@gmail.com)
+**Email:** <ObfuscatedEmail />
 
 For all legal, data-protection, and content-related enquiries, please use the
 email address above. We aim to respond to enquiries promptly.
