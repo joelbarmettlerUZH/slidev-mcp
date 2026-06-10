@@ -172,10 +172,12 @@
                   GitHub
                 </a>
               </li>
+              <li><a href="/impressum">Legal Notice</a></li>
             </ul>
           </div>
         </div>
         <div class="footer-bottom">
+          <span>&copy; {{ new Date().getFullYear() }} LatentSpace Labs GmbH &middot; <a href="/impressum">Legal Notice</a></span>
           <span>Built with <a href="https://sli.dev" target="_blank">Slidev</a> and the <a href="https://modelcontextprotocol.io" target="_blank">Model Context Protocol</a>.</span>
         </div>
       </nav>
@@ -739,6 +741,9 @@
   text-align: center;
   font-size: 13px;
   color: var(--grey);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .footer-bottom a {
   color: var(--grey);
