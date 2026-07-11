@@ -79,7 +79,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Operated by LatentSpace Labs GmbH · <a href="/impressum">Legal Notice</a>',
+        'Operated by LatentSpace Labs GmbH · Built by <a href="https://souverana.ch" target="_blank" rel="noopener">Souverana</a>, AI Consulting for teams shipping with LLMs · <a href="/impressum">Legal Notice</a>',
       copyright: `© ${new Date().getFullYear()} LatentSpace Labs GmbH`,
     },
   },
