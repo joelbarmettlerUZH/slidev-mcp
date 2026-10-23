@@ -34,7 +34,7 @@ PDF export and slide screenshots are fully supported:
 | **PDF export** | `export_slides` | Server-side Playwright rendering; returns a download URL |
 | **Slide screenshots** | `screenshot_slides` | Returns one PNG per slide for visual review |
 
-Both tools require the presentation to have been created in the current session.
+Both tools take the UUID of the presentation.
 
 ## Limits
 
@@ -43,13 +43,16 @@ Both tools require the presentation to have been created in the current session.
 | Markdown size | 1 MB | Maximum size of the markdown input |
 | Build timeout | 120 seconds | Maximum time for a single build |
 | Concurrent builds | 3 | Maximum simultaneous builds on the server |
-| Slide TTL | 30 days | Slides are automatically deleted after this period |
+| Slide TTL | 30 days | Slides are automatically deleted after this period without an update |
 
-## Session Behavior
+## Access Model
 
-- You can update a presentation as many times as you want **within the same session**.
-- Once your session ends (you disconnect), all your presentations become **immutable** — they can still be viewed but not modified.
-- If the server restarts, all active sessions are terminated. Existing slides remain viewable.
+The server has no accounts and no per-connection state, because the current MCP protocol (`2026-07-28`) is stateless. A presentation's **UUID is its only credential**:
+
+- Anyone who has the UUID can update, export, or screenshot the presentation. The UUID is part of the slide URL (`/slides/{uuid}/`), so **treat the URL like an edit link**: sharing it shares edit access through this server.
+- UUIDs are random v4 values and cannot be guessed or listed. The server has no way to enumerate other people's presentations.
+- A presentation can be updated from any connection, in any conversation, and across server restarts, for as long as it exists.
+- `list_session_slides` only looks up UUIDs you pass in; keep the UUIDs returned by `render_slides`.
 
 ## Theme Set
 

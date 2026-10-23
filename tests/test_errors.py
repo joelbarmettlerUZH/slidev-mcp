@@ -5,8 +5,6 @@ from slidev_mcp.errors import (
     MarkdownTooLarge,
     SlidevMcpError,
     ThemeNotAllowed,
-    UuidForeign,
-    UuidSealed,
 )
 
 
@@ -14,8 +12,6 @@ class TestErrors:
     def test_all_inherit_from_base(self):
         errors = [
             ThemeNotAllowed("bad-theme"),
-            UuidSealed("some-uuid"),
-            UuidForeign("some-uuid"),
             BuildFailed("stderr output"),
             BuildTimeout(120),
             MarkdownTooLarge(2_000_000, 1_000_000),
@@ -26,8 +22,6 @@ class TestErrors:
 
     def test_error_codes(self):
         assert ThemeNotAllowed("x").code == "theme_not_allowed"
-        assert UuidSealed("x").code == "uuid_sealed"
-        assert UuidForeign("x").code == "uuid_foreign"
         assert BuildFailed("x").code == "build_failed"
         assert BuildTimeout(60).code == "build_timeout"
         assert MarkdownTooLarge(2, 1).code == "markdown_too_large"

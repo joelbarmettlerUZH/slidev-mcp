@@ -17,7 +17,6 @@ from slidev_mcp.errors import SlidevMcpError
 from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.resource_registry import load_resources
 from slidev_mcp.server import _register_resources
-from slidev_mcp.sessions import SessionMap
 from slidev_mcp.tools import list_session_slides as _list_session_slides
 from slidev_mcp.tools import render_slides as _render_slides
 
@@ -44,7 +43,6 @@ def _create_test_server(settings: Settings) -> FastMCP:
         await create_tables(engine)
         db_session_factory = create_session_factory(engine)
 
-        session_map = SessionMap()
         builder = BuildOrchestrator(settings)
         builder._client = _mock_builder_http()
 
@@ -57,7 +55,6 @@ def _create_test_server(settings: Settings) -> FastMCP:
             yield {
                 "settings": settings,
                 "db_session_factory": db_session_factory,
-                "session_map": session_map,
                 "builder": builder,
                 "resources": resources,
             }
@@ -87,7 +84,6 @@ def _create_test_server(settings: Settings) -> FastMCP:
                 theme=theme,
                 uuid=uuid,
                 session_id=session_id,
-                session_map=lc["session_map"],
                 builder=lc["builder"],
                 db_session_factory=lc["db_session_factory"],
             )
@@ -95,15 +91,17 @@ def _create_test_server(settings: Settings) -> FastMCP:
             raise ValueError(f"[{e.code}] {e.message}") from None
 
     @server.tool
-    async def list_session_slides(ctx: Context) -> dict:
-        """List all slides created in the current MCP session."""
+    async def list_session_slides(uuids: list[str], ctx: Context) -> dict:
+        """Look up presentations by UUID."""
         lc = ctx.lifespan_context
-        session_id = ctx.session_id or ctx.client_id or "unknown"
-        return await _list_session_slides(
-            session_id=session_id,
-            db_session_factory=lc["db_session_factory"],
-            settings=lc["settings"],
-        )
+        try:
+            return await _list_session_slides(
+                uuids=uuids,
+                db_session_factory=lc["db_session_factory"],
+                settings=lc["settings"],
+            )
+        except SlidevMcpError as e:
+            raise ValueError(f"[{e.code}] {e.message}") from None
 
     @server.tool
     async def list_themes(ctx: Context) -> str:
@@ -152,37 +150,6 @@ def _create_test_server(settings: Settings) -> FastMCP:
         return json.dumps({"uuid": uuid, "screenshots": 1})
 
     # Register dynamic session resources
-    @server.resource("slides://session")
-    async def session_slides_resource(ctx: Context) -> str:
-        """All slides in the current session."""
-        lc = ctx.lifespan_context
-        session_id = ctx.session_id or ctx.client_id or "unknown"
-        settings_ctx = lc["settings"]
-
-        async with lc["db_session_factory"]() as db:
-            result = await db.execute(select(Slide).where(Slide.session_id == session_id))
-            slides = result.scalars().all()
-
-            entries = []
-            for slide in slides:
-                latest = await db.scalar(
-                    select(SlideVersion.markdown)
-                    .where(SlideVersion.slide_uuid == slide.uuid)
-                    .order_by(SlideVersion.version.desc())
-                    .limit(1)
-                )
-                host = settings_ctx.slides_domain or settings_ctx.domain
-                entries.append(
-                    f"## {slide.uuid}\n\n"
-                    f"- **Theme:** {slide.theme}\n"
-                    f"- **URL:** https://{host}/slides/{slide.uuid}/\n\n"
-                    f"```markdown\n{latest or '(no markdown stored)'}\n```"
-                )
-
-        if not entries:
-            return "No slides in this session yet."
-        return "# Session Slides\n\n" + "\n\n---\n\n".join(entries)
-
     @server.resource("slides://session/{uuid}")
     async def slide_detail_resource(uuid: str, ctx: Context) -> str:
         """Detail for a specific slide."""
@@ -301,17 +268,15 @@ class TestE2ERenderSlides:
     async def test_render_then_list(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
             # Render two slides
-            await client.call_tool(
-                "render_slides",
-                {"markdown": "# Deck 1", "theme": "default"},
-            )
-            await client.call_tool(
-                "render_slides",
-                {"markdown": "# Deck 2", "theme": "seriph"},
-            )
+            uuids = []
+            for markdown, theme in (("# Deck 1", "default"), ("# Deck 2", "seriph")):
+                rendered = await client.call_tool(
+                    "render_slides", {"markdown": markdown, "theme": theme}
+                )
+                uuids.append(json.loads(_tool_text(rendered))["uuid"])
 
-            # List session slides
-            result = await client.call_tool("list_session_slides", {})
+            # Look both up by UUID
+            result = await client.call_tool("list_session_slides", {"uuids": uuids})
 
         data = json.loads(_tool_text(result))
         assert len(data["slides"]) == 2
@@ -320,12 +285,57 @@ class TestE2ERenderSlides:
 
 
 class TestE2EListSessionSlides:
-    async def test_empty_session(self, test_server: FastMCP) -> None:
+    async def test_empty_lookup(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
-            result = await client.call_tool("list_session_slides", {})
+            result = await client.call_tool("list_session_slides", {"uuids": []})
 
         data = json.loads(_tool_text(result))
         assert data["slides"] == []
+
+    async def test_unknown_uuid_omitted(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            result = await client.call_tool(
+                "list_session_slides",
+                {"uuids": ["00000000-0000-4000-a000-000000000000"]},
+            )
+
+        assert json.loads(_tool_text(result))["slides"] == []
+
+    async def test_invalid_uuid_rejected(self, test_server: FastMCP) -> None:
+        from fastmcp.exceptions import ToolError
+
+        async with Client(transport=test_server) as client:
+            with pytest.raises(ToolError, match="invalid_uuid"):
+                await client.call_tool("list_session_slides", {"uuids": ["../etc/passwd"]})
+
+
+class TestE2EStatelessConnections:
+    """The 2026-07-28 protocol gives every request a fresh connection.
+
+    A UUID must keep working across separate client connections.
+    """
+
+    async def test_update_from_a_new_connection(self, test_server: FastMCP) -> None:
+        async with Client(transport=test_server) as client:
+            created = await client.call_tool(
+                "render_slides", {"markdown": "# V1", "theme": "default"}
+            )
+        slide_uuid = json.loads(_tool_text(created))["uuid"]
+
+        async with Client(transport=test_server) as other_client:
+            updated = await other_client.call_tool(
+                "render_slides",
+                {"markdown": "# V2", "theme": "seriph", "uuid": slide_uuid},
+            )
+            listed = await other_client.call_tool("list_session_slides", {"uuids": [slide_uuid]})
+            detail = await other_client.read_resource(f"slides://session/{slide_uuid}")
+
+        assert json.loads(_tool_text(updated))["uuid"] == slide_uuid
+        slides = json.loads(_tool_text(listed))["slides"]
+        assert [s["theme"] for s in slides] == ["seriph"]
+        assert slides[0]["version_count"] == 2
+        text = detail[0].content if hasattr(detail[0], "content") else str(detail[0])
+        assert "# V2" in text
 
 
 class TestE2EResources:
@@ -338,7 +348,7 @@ class TestE2EResources:
         assert "slidev://themes/guide" in uris
         assert "slidev://examples/minimal" in uris
         assert "slidev://examples/full_demo" in uris
-        assert "slides://session" in uris
+        assert "slides://session" not in uris
 
     async def test_read_installed_themes(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
@@ -373,31 +383,7 @@ class TestE2EResources:
         assert "# Welcome" in text
 
 
-class TestE2ESessionResources:
-    async def test_empty_session_resource(self, test_server: FastMCP) -> None:
-        async with Client(transport=test_server) as client:
-            content = await client.read_resource("slides://session")
-
-        text = content[0].content if hasattr(content[0], "content") else str(content[0])
-        assert "No slides" in text
-
-    async def test_session_resource_after_render(self, test_server: FastMCP) -> None:
-        async with Client(transport=test_server) as client:
-            # Render a slide
-            result = await client.call_tool(
-                "render_slides",
-                {"markdown": "# My Deck\n\n---\n\n## Slide 2", "theme": "default"},
-            )
-            data = json.loads(_tool_text(result))
-
-            # Read session resource
-            content = await client.read_resource("slides://session")
-
-        text = content[0].content if hasattr(content[0], "content") else str(content[0])
-        assert data["uuid"] in text
-        assert "# My Deck" in text
-        assert "default" in text
-
+class TestE2ESlideDetailResource:
     async def test_slide_detail_resource(self, test_server: FastMCP) -> None:
         async with Client(transport=test_server) as client:
             # Render a slide
@@ -508,7 +494,7 @@ class TestE2EToolDiscovery:
             tools = await client.list_tools()
 
         render_tool = next(t for t in tools if t.name == "render_slides")
-        props = render_tool.inputSchema["properties"]
+        props = render_tool.input_schema["properties"]
         assert "markdown" in props
         assert "theme" in props
         assert "uuid" in props

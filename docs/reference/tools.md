@@ -37,8 +37,6 @@ A base64-encoded PNG preview image is also returned as an image content block (v
 |---|---|
 | `theme_not_allowed` | Theme name is not in the allowlist or has an invalid format |
 | `invalid_uuid` | UUID does not match UUID v4 format |
-| `uuid_sealed` | UUID exists but belongs to a closed session (immutable) |
-| `uuid_foreign` | UUID belongs to a different active session |
 | `build_failed` | Slidev build failed (includes error details) |
 | `build_timeout` | Build exceeded the timeout (default 120s) |
 | `markdown_too_large` | Markdown exceeds the size limit (default 1 MB) |
@@ -49,7 +47,7 @@ A base64-encoded PNG preview image is also returned as an image content block (v
 - Images must be **remote URLs** or **base64-encoded inline**. Local file paths are not supported.
 - The `theme` parameter is validated against the [installed themes](/reference/themes). Only pre-installed themes are allowed.
 - When `uuid` is provided, the presentation is updated in-place. The URL stays the same.
-- UUIDs are tied to your session. Once you disconnect, your presentations become immutable.
+- The UUID is the only credential: anyone holding it can update the presentation, from any connection. Treat slide URLs like edit links. See [Access Model](/reference/limitations#access-model).
 
 ## export_slides
 
@@ -59,7 +57,7 @@ Export a presentation as a downloadable PDF.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `uuid` | `string` | Yes | UUID of the presentation to export. Must be from the current session. |
+| `uuid` | `string` | Yes | UUID of the presentation to export. |
 
 ### Returns
 
@@ -75,13 +73,12 @@ Export a presentation as a downloadable PDF.
 
 | Code | Description |
 |---|---|
-| `uuid_foreign` | UUID does not belong to this session |
+| `invalid_uuid` | UUID does not match UUID v4 format |
 | `not_found` | Slide or markdown version not found |
 | `export_failed` | PDF export failed (includes error details) |
 
 ### Notes
 
-- The presentation must have been created in the current session.
 - PDF export uses Playwright to render slides server-side, so the result matches what you see in the browser.
 
 ## screenshot_slides
@@ -102,22 +99,23 @@ One PNG image per slide, returned as image content blocks. Use this to visually 
 
 | Code | Description |
 |---|---|
-| `uuid_foreign` | UUID does not belong to this session |
+| `invalid_uuid` | UUID does not match UUID v4 format |
 | `not_found` | Slide or markdown version not found |
 | `export_failed` | Screenshot rendering failed |
 
 ### Notes
 
-- The presentation must have been created in the current session.
 - Returns one image per slide, so multi-model AI clients can see exactly what each slide looks like.
 
 ## list_session_slides
 
-List all presentations created in the current session.
+Look up presentations by UUID. The server does not track which presentations belong to a conversation, so pass the UUIDs returned by `render_slides`. Unknown UUIDs are omitted.
 
 ### Parameters
 
-None.
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `uuids` | `list[string]` | Yes | UUIDs of the presentations to look up (max 50). |
 
 ### Returns
 

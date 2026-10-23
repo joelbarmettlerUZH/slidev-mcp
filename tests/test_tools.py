@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator, BuildResult
@@ -10,22 +10,15 @@ from slidev_mcp.errors import (
     BuildFailed,
     InvalidUuid,
     ThemeNotAllowed,
-    UuidForeign,
-    UuidSealed,
 )
 from slidev_mcp.models import Slide, SlideVersion
-from slidev_mcp.sessions import SessionMap
+from slidev_mcp.server import SlideInfo
 from slidev_mcp.tools import list_session_slides, render_slides
 
 
 @pytest.fixture
 def settings() -> Settings:
     return Settings(domain="test.example.com")
-
-
-@pytest.fixture
-def session_map() -> SessionMap:
-    return SessionMap()
 
 
 @pytest.fixture
@@ -49,14 +42,12 @@ class TestRenderSlides:
     async def test_new_slide(
         self,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         result = await render_slides(
             markdown="# Test",
             theme="default",
             session_id="session-1",
-            session_map=session_map,
             builder=mock_builder,
             db_session_factory=db_session_factory,
         )
@@ -85,12 +76,10 @@ class TestRenderSlides:
         assert versions[0].theme == "default"
 
         # Verify session map registration
-        assert session_map.owns(result["uuid"], "session-1")
 
     async def test_update_owned_slide(
         self,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         # First create
@@ -98,7 +87,6 @@ class TestRenderSlides:
             markdown="# V1",
             theme="default",
             session_id="session-1",
-            session_map=session_map,
             builder=mock_builder,
             db_session_factory=db_session_factory,
         )
@@ -109,7 +97,6 @@ class TestRenderSlides:
             theme="seriph",
             uuid=result1["uuid"],
             session_id="session-1",
-            session_map=session_map,
             builder=mock_builder,
             db_session_factory=db_session_factory,
         )
@@ -137,49 +124,40 @@ class TestRenderSlides:
         assert versions[1].markdown == "# V2"
         assert versions[1].theme == "seriph"
 
-    async def test_uuid_foreign_rejected(
+    async def test_any_session_can_update_existing_uuid(
         self,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        foreign_uuid = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
-        session_map.register(foreign_uuid, "other-session")
-
-        with pytest.raises(UuidForeign):
-            await render_slides(
-                markdown="# Test",
-                theme="default",
-                uuid=foreign_uuid,
-                session_id="my-session",
-                session_map=session_map,
-                builder=mock_builder,
-                db_session_factory=db_session_factory,
-            )
-
-    async def test_uuid_sealed_rejected(
-        self,
-        mock_builder: MagicMock,
-        session_map: SessionMap,
-        db_session_factory: async_sessionmaker[AsyncSession],
-    ) -> None:
-        # Insert a slide in DB (simulating a previously created slide)
-        sealed_uuid = "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+        """The UUID is the capability: a different (or new) session may update it."""
+        existing_uuid = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
         async with db_session_factory() as session:
-            session.add(Slide(uuid=sealed_uuid, session_id="old-session", theme="default"))
+            session.add(Slide(uuid=existing_uuid, session_id="old-session", theme="default"))
+            session.add(
+                SlideVersion(slide_uuid=existing_uuid, version=1, markdown="# V1", theme="default")
+            )
             await session.commit()
 
-        # UUID is not in session_map (sealed)
-        with pytest.raises(UuidSealed):
-            await render_slides(
-                markdown="# Test",
-                theme="default",
-                uuid=sealed_uuid,
-                session_id="new-session",
-                session_map=session_map,
-                builder=mock_builder,
-                db_session_factory=db_session_factory,
+        result = await render_slides(
+            markdown="# V2",
+            theme="seriph",
+            uuid=existing_uuid,
+            session_id="new-session",
+            builder=mock_builder,
+            db_session_factory=db_session_factory,
+        )
+
+        assert result["uuid"] == existing_uuid
+        async with db_session_factory() as session:
+            slide = await session.get(Slide, existing_uuid)
+            max_ver = await session.scalar(
+                select(func.max(SlideVersion.version)).where(
+                    SlideVersion.slide_uuid == existing_uuid
+                )
             )
+        assert slide.theme == "seriph"
+        assert slide.session_id == "old-session"  # informational, not rewritten
+        assert max_ver == 2
 
     @pytest.mark.parametrize(
         "bad_uuid",
@@ -195,7 +173,6 @@ class TestRenderSlides:
         self,
         bad_uuid: str,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         with pytest.raises(InvalidUuid):
@@ -204,7 +181,6 @@ class TestRenderSlides:
                 theme="default",
                 uuid=bad_uuid,
                 session_id="my-session",
-                session_map=session_map,
                 builder=mock_builder,
                 db_session_factory=db_session_factory,
             )
@@ -212,7 +188,6 @@ class TestRenderSlides:
     async def test_build_error_propagated(
         self,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         mock_builder.build = AsyncMock(side_effect=BuildFailed("build error"))
@@ -222,7 +197,6 @@ class TestRenderSlides:
                 markdown="# Test",
                 theme="default",
                 session_id="session-1",
-                session_map=session_map,
                 builder=mock_builder,
                 db_session_factory=db_session_factory,
             )
@@ -230,7 +204,6 @@ class TestRenderSlides:
     async def test_theme_validation_propagated(
         self,
         mock_builder: MagicMock,
-        session_map: SessionMap,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         mock_builder.build = AsyncMock(side_effect=ThemeNotAllowed("bad-theme"))
@@ -240,50 +213,63 @@ class TestRenderSlides:
                 markdown="# Test",
                 theme="bad-theme",
                 session_id="session-1",
-                session_map=session_map,
                 builder=mock_builder,
                 db_session_factory=db_session_factory,
             )
 
 
 class TestListSessionSlides:
-    async def test_empty_session(
+    async def test_empty_lookup(
         self,
         settings: Settings,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         result = await list_session_slides(
-            session_id="empty-session",
+            uuids=[],
             db_session_factory=db_session_factory,
             settings=settings,
         )
 
         assert result["slides"] == []
 
-    async def test_returns_session_slides(
+    async def test_returns_only_requested_uuids(
         self,
         settings: Settings,
         db_session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        # Insert slides for different sessions
+        uuid_1 = "11111111-1111-4111-8111-111111111111"
+        uuid_2 = "22222222-2222-4222-8222-222222222222"
+        uuid_3 = "33333333-3333-4333-8333-333333333333"
+        missing = "44444444-4444-4444-8444-444444444444"
         async with db_session_factory() as session:
-            session.add(Slide(uuid="uuid-1", session_id="my-session", theme="default"))
-            session.add(Slide(uuid="uuid-2", session_id="my-session", theme="seriph"))
-            session.add(Slide(uuid="uuid-3", session_id="other-session", theme="dracula"))
+            session.add(Slide(uuid=uuid_1, session_id="session-a", theme="default"))
+            session.add(Slide(uuid=uuid_2, session_id="session-b", theme="seriph"))
+            session.add(Slide(uuid=uuid_3, session_id="session-a", theme="dracula"))
+            session.add(SlideVersion(slide_uuid=uuid_1, version=1, markdown="# A", theme="default"))
             await session.commit()
 
         result = await list_session_slides(
-            session_id="my-session",
+            uuids=[uuid_1, uuid_2, missing, uuid_1],  # duplicate + unknown
             db_session_factory=db_session_factory,
             settings=settings,
         )
 
-        assert len(result["slides"]) == 2
-        uuids = {s["uuid"] for s in result["slides"]}
-        assert uuids == {"uuid-1", "uuid-2"}
-
+        assert [s["uuid"] for s in result["slides"]] == [uuid_1, uuid_2]
+        # The server wraps each row in SlideInfo; its fields must match the tool output
+        assert [SlideInfo(**s).uuid for s in result["slides"]] == [uuid_1, uuid_2]
+        assert result["slides"][0]["version_count"] == 1
+        assert result["slides"][1]["version_count"] == 0
         for slide in result["slides"]:
-            assert "url" in slide
-            assert "theme" in slide
-            assert "version_count" in slide
             assert "test.example.com" in slide["url"]
+
+    async def test_invalid_uuid_rejected(
+        self,
+        settings: Settings,
+        db_session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        with pytest.raises(InvalidUuid):
+            await list_session_slides(
+                uuids=["../../etc/passwd"],
+                db_session_factory=db_session_factory,
+                settings=settings,
+            )
