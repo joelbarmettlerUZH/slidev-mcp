@@ -1,4 +1,4 @@
-FROM oven/bun:latest
+FROM oven/bun:1.4
 
 # Install Playwright system dependencies as root (Chromium needs system libs)
 USER root
