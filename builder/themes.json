@@ -1,5 +1,5 @@
 {
-  "slidev_cli_version": "0.50.0",
+  "slidev_cli_version": "52.14.1",
   "themes": {
     "default": {
       "package": "@slidev/theme-default",
@@ -40,19 +40,19 @@
     },
     "academic": {
       "package": "slidev-theme-academic",
-      "version": "2.1.0",
+      "version": "3.0.1",
       "license": "MIT",
       "repo": "https://github.com/alexanderdavide/slidev-theme-academic"
     },
     "dracula": {
       "package": "slidev-theme-dracula",
-      "version": "0.2.0",
+      "version": "0.2.5",
       "license": "MIT",
       "repo": "https://github.com/jd-solanki/slidev-theme-dracula"
     },
     "cobalt": {
       "package": "slidev-theme-cobalt",
-      "version": "0.3.4",
+      "version": "0.4.0",
       "license": "MIT",
       "slidev_cli_version": "52.14.1",
       "repo": "https://github.com/alecfe/slidev-theme-cobalt"
@@ -65,14 +65,14 @@
     },
     "frankfurt": {
       "package": "slidev-theme-frankfurt",
-      "version": "1.0.8",
+      "version": "1.1.1",
       "license": "MIT",
       "slidev_cli_version": "52.14.1",
       "repo": "https://github.com/MuTsunTsai/slidev-theme-frankfurt"
     },
     "field-manual": {
       "package": "slidev-theme-field-manual",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "license": "MIT",
       "repo": "https://github.com/pjdoland/slidev-theme-field-manual"
     },
@@ -114,7 +114,7 @@
     },
     "scholarly": {
       "package": "slidev-theme-scholarly",
-      "version": "1.3.2",
+      "version": "1.5.0",
       "license": "MIT",
       "slidev_cli_version": "52.14.1",
       "repo": "https://github.com/jxpeng98/slidev-theme-scholarly"
@@ -140,7 +140,7 @@
     },
     "the-unnamed": {
       "package": "slidev-theme-the-unnamed",
-      "version": "0.0.22",
+      "version": "0.0.24",
       "license": "MIT",
       "repo": "https://github.com/estruyf/slidev-theme-the-unnamed"
     },
