@@ -39,7 +39,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & push server image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.mcp
@@ -52,7 +52,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=server
 
       - name: Build & push builder image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: builder
           file: builder/Dockerfile
