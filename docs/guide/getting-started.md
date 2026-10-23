@@ -103,7 +103,7 @@ Your AI assistant has access to these tools:
 | `render_slides` | Create or update a presentation |
 | `export_slides` | Export a presentation as a downloadable PDF |
 | `screenshot_slides` | Get PNG screenshots of each slide for visual review |
-| `list_session_slides` | See all presentations from this session |
+| `list_session_slides` | Look up presentations by UUID |
 | `list_themes` | Read theme descriptions (for the AI to choose) |
 | `browse_themes` | Show a visual theme gallery |
 | `get_theme` | Read a specific theme's full documentation |

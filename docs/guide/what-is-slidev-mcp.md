@@ -22,7 +22,7 @@ You connect your MCP client (Claude Code, Cursor, VS Code, etc.) to the server, 
 - A hosted, interactive HTML presentation at a unique URL
 - Support for Slidev features: layouts, animations, code highlighting, LaTeX, Mermaid diagrams
 - [24 curated themes](/reference/themes) to choose from — all MIT-licensed and build-validated
-- The ability to iterate on your slides within the same session
+- The ability to iterate on your slides by re-rendering with the same UUID
 
 ## Who Is This For?
 
