@@ -44,6 +44,7 @@ jobs:
           context: .
           file: docker/Dockerfile.mcp
           push: true
+          pull: true
           tags: |
             ${{ steps.meta.outputs.server }}:latest
             ${{ steps.meta.outputs.server }}:sha-${{ github.sha }}
@@ -56,6 +57,7 @@ jobs:
           context: builder
           file: builder/Dockerfile
           push: true
+          pull: true
           tags: |
             ${{ steps.meta.outputs.builder }}:latest
             ${{ steps.meta.outputs.builder }}:sha-${{ github.sha }}
