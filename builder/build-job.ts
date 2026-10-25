@@ -1,6 +1,8 @@
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { config } from "./config";
+import { runCommand } from "./run";
 
 export interface BuildParams {
   markdown: string;
@@ -8,6 +10,7 @@ export interface BuildParams {
   uuid: string;
   basePath: string;
   colorSchema: string;
+  signal?: AbortSignal;
 }
 
 export interface BuildResult {
@@ -74,7 +77,7 @@ function patchFrontmatter(markdown: string, theme: string, colorSchema: string):
 }
 
 export async function runBuild(params: BuildParams): Promise<BuildResult> {
-  const { markdown, theme, uuid, basePath, colorSchema } = params;
+  const { markdown, theme, uuid, basePath, colorSchema, signal } = params;
 
   // Locate the theme's project directory
   const themeDir = join("/app/themes", theme);
@@ -107,23 +110,26 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
     }
 
     // Run slidev build
-    const proc = Bun.spawn(
+    const built = await runCommand(
       ["bunx", "slidev", "build", "--base", basePath, "--out", distDir],
-      {
-        cwd: workDir,
-        stdout: "pipe",
-        stderr: "pipe",
-      }
+      { cwd: workDir, timeoutSeconds: config.buildTimeoutSeconds, signal },
     );
-
-    const exitCode = await proc.exited;
     const elapsed = (Date.now() - start) / 1000;
 
-    if (exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text();
+    if (built.timedOut || built.killed) {
+      throw new BuildError(
+        "build_timeout",
+        `Build exceeded ${config.buildTimeoutSeconds}s and was stopped`,
+        504,
+      );
+    }
+    if (built.aborted) {
+      throw new BuildError("aborted", "Client disconnected; build stopped", 499);
+    }
+    if (built.exitCode !== 0) {
       throw new BuildError(
         "build_failed",
-        `Build exited with code ${exitCode}: ${stderr.slice(-500)}`
+        `Build exited with code ${built.exitCode}: ${built.stderrTail.slice(-500)}`
       );
     }
 
@@ -145,7 +151,7 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
     let preview_base64 = "";
     try {
       const previewOut = join(distDir, "preview");
-      const exportProc = Bun.spawn(
+      const preview = await runCommand(
         [
           "bunx", "slidev", "export",
           "--format", "png",
@@ -153,10 +159,9 @@ export async function runBuild(params: BuildParams): Promise<BuildResult> {
           "--output", previewOut,
           "--timeout", "30000",
         ],
-        { cwd: workDir, stdout: "pipe", stderr: "pipe" }
+        { cwd: workDir, timeoutSeconds: config.previewTimeoutSeconds, signal },
       );
-      const exportCode = await exportProc.exited;
-      if (exportCode === 0) {
+      if (preview.exitCode === 0) {
         // Slidev exports PNGs into {output}/{num}.png
         const pngPath = join(previewOut, "1.png");
         if (existsSync(pngPath)) {

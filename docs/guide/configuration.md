@@ -37,8 +37,22 @@ Slidev MCP is configured via environment variables. Set them in your `.env` file
 | `BUILDER_HOST` | `builder` | Builder HTTP server hostname |
 | `BUILDER_PORT` | `3000` | Builder HTTP server port |
 | `BUILD_TIMEOUT` | `120` | Maximum seconds per build |
-| `MAX_CONCURRENT_BUILDS` | `3` | Maximum simultaneous builds |
+| `MAX_CONCURRENT_BUILDS` | `3` | Not used by the MCP server; concurrency is enforced by the builder (see below) |
 | `SLIDES_DIR` | `/data/slides` | Directory for built slide files |
+
+#### Builder limits
+
+These are read by the builder container itself, not the MCP server. Every `slidev` run is stopped when it exceeds its limit (the whole process tree, including Chromium), and stopped early if the client disconnects. When all slots and the queue are full, the builder answers immediately with a "concurrent limit" error instead of piling up work.
+
+| Variable | Default | Description |
+|---|---|---|
+| `BUILDER_BUILD_TIMEOUT_SECONDS` | `90` | Hard limit for `slidev build` |
+| `BUILDER_PREVIEW_TIMEOUT_SECONDS` | `25` | Hard limit for the first-slide preview after a build (best effort) |
+| `BUILDER_EXPORT_TIMEOUT_SECONDS` | `170` | Hard limit for a PDF or screenshot export |
+| `BUILDER_MAX_CONCURRENT` | `2` | Jobs running at once (the container has 2 CPUs) |
+| `BUILDER_MAX_QUEUED` | `8` | Jobs allowed to wait for a slot before new ones are rejected |
+
+Keep the build limits below the MCP server's own timeouts (`BUILD_TIMEOUT` + 5 s for builds, 180 s for exports), or the server gives up first.
 
 ### Lifecycle
 

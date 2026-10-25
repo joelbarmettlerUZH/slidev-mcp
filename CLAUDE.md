@@ -33,6 +33,7 @@ MCP Client ──MCP/HTTP──▶ MCP Server (Python/FastMCP)
 
 **Key design decisions:**
 - Builder communicates via HTTP (port 3000), not Docker socket — no socket mount, no proxy needed
+- Every `slidev` subprocess runs under a hard deadline (`runCommand`, GNU `timeout` kills the whole process group) and is aborted when the client disconnects; user-submitted markdown must never be able to pin the builder indefinitely
 - Each theme is a separate Bun project with its own `package.json`, `node_modules`, and Slidev version
 - Builder has outbound internet (`builder-egress` network) for fonts/images during Playwright export, plus `isolated` for MCP server communication. Non-root user, `no-new-privileges`
 - Slides use hash-based routing (`routerMode: hash`) so nginx serves static files without SPA fallback
@@ -61,6 +62,10 @@ slidev-mcp/
 │   ├── Dockerfile             # Per-theme project generation, install, validation
 │   ├── server.ts              # HTTP server (POST /build, GET /health)
 │   ├── build-job.ts           # Build logic: copy theme, patch frontmatter, run slidev build
+│   ├── run.ts                 # runCommand: deadline + process-tree kill + output draining + abort
+│   ├── limiter.ts             # Bounded concurrency + queue (503 concurrent_limit when full)
+│   ├── config.ts              # Builder limits from env
+│   ├── *.test.ts              # bun test (run in CI)
 │   ├── themes.json            # Single source of truth for all themes
 │   ├── bunfig.toml            # Disables lifecycle scripts
 │   └── scripts/
@@ -206,7 +211,8 @@ Slide detail resources (`slides://`) are dynamic `@mcp.resource` handlers that q
 | `BUILDER_HOST` | `builder` | Builder HTTP server hostname |
 | `BUILDER_PORT` | `3000` | Builder HTTP server port |
 | `BUILD_TIMEOUT` | `120` | Max seconds per build |
-| `MAX_CONCURRENT_BUILDS` | `3` | Semaphore limit (currently unused — builder handles concurrency) |
+| `MAX_CONCURRENT_BUILDS` | `3` | Unused by the MCP server; the builder enforces concurrency (`BUILDER_MAX_CONCURRENT`, `BUILDER_MAX_QUEUED`) |
+| `BUILDER_BUILD_TIMEOUT_SECONDS` / `BUILDER_PREVIEW_TIMEOUT_SECONDS` / `BUILDER_EXPORT_TIMEOUT_SECONDS` | `90` / `25` / `170` | Builder-side hard limits per `slidev` run (read by the builder container, see `builder/config.ts`) |
 | `SLIDE_TTL_DAYS` | `30` | Days since last update before slides are GC'd |
 | `GC_INTERVAL_HOURS` | `6` | GC background task interval |
 | `SERVER_TRANSPORT` | `stdio` | `stdio` or `streamable-http` |

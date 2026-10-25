@@ -11,8 +11,28 @@
 
 import { runBuild } from "./build-job";
 import { runExport } from "./export-job";
+import { config } from "./config";
+import { AbortedError, BusyError, Limiter } from "./limiter";
 
 const PORT = Number(process.env.BUILDER_PORT || 3000);
+const limiter = new Limiter(config.maxConcurrent, config.maxQueued);
+
+/** Map failures to the JSON error shape the MCP server expects. */
+function errorResponse(err: any, fallbackCode: string): Response {
+  if (err instanceof BusyError) {
+    return Response.json(
+      { error: "concurrent_limit", details: err.message },
+      { status: 503, headers: { "Retry-After": "10" } },
+    );
+  }
+  if (err instanceof AbortedError) {
+    return Response.json({ error: "aborted", details: err.message }, { status: 499 });
+  }
+  return Response.json(
+    { error: err.code || fallbackCode, details: err.message || String(err) },
+    { status: err.status || 500 },
+  );
+}
 
 const server = Bun.serve({
   port: PORT,
@@ -20,7 +40,7 @@ const server = Bun.serve({
     const url = new URL(req.url);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      return Response.json({ status: "ok" });
+      return Response.json({ status: "ok", ...limiter.stats });
     }
 
     if (req.method === "POST" && url.pathname === "/build") {
@@ -35,17 +55,17 @@ const server = Bun.serve({
           );
         }
 
-        const result = await runBuild({
-          markdown, theme, uuid, basePath: base_path,
-          colorSchema: color_schema || "light",
-        });
+        const result = await limiter.run(
+          () => runBuild({
+            markdown, theme, uuid, basePath: base_path,
+            colorSchema: color_schema || "light",
+            signal: req.signal,
+          }),
+          req.signal,
+        );
         return Response.json(result);
       } catch (err: any) {
-        const status = err.status || 500;
-        return Response.json(
-          { error: err.code || "build_failed", details: err.message || String(err) },
-          { status }
-        );
+        return errorResponse(err, "build_failed");
       }
     }
 
@@ -61,18 +81,18 @@ const server = Bun.serve({
           );
         }
 
-        const result = await runExport({
-          markdown, theme, uuid,
-          format: format === "png" ? "png" : "pdf",
-          colorSchema: color_schema || "light",
-        });
+        const result = await limiter.run(
+          () => runExport({
+            markdown, theme, uuid,
+            format: format === "png" ? "png" : "pdf",
+            colorSchema: color_schema || "light",
+            signal: req.signal,
+          }),
+          req.signal,
+        );
         return Response.json(result);
       } catch (err: any) {
-        const status = err.status || 500;
-        return Response.json(
-          { error: err.code || "export_failed", details: err.message || String(err) },
-          { status }
-        );
+        return errorResponse(err, "export_failed");
       }
     }
 
