@@ -29,6 +29,7 @@ MCP Client ──MCP/HTTP──▶ MCP Server (Python/FastMCP)
 | `builder` | `oven/bun` | Bun HTTP server, per-theme Slidev builds |
 | `postgres` | `postgres:17-alpine` | Build metadata, versioned markdown, GC tracking |
 | `nginx` | `nginx:alpine` | Static file serving for built slides |
+| `dashboard` | `oven/bun` | Usage dashboard (Bun API + Vue page, `dashboard/`), prod only, behind HTTP Basic auth |
 | `traefik` | `traefik:v3.6` | TLS, routing, rate limiting (local + prod only) |
 
 **Key design decisions:**
@@ -52,6 +53,7 @@ slidev-mcp/
 │   ├── resource_registry.py   # Maps resource URIs → files
 │   ├── config.py              # pydantic-settings, ALLOWED_THEMES
 │   ├── errors.py              # Typed error classes
+│   ├── usage.py               # UsageMiddleware: records tool calls + resource reads into usage_events
 │   └── resources/             # Hand-authored + fetched resources
 │       ├── installed_themes.md
 │       ├── theme_guide.md     # Theme selection guide (style, tone, best-for)
@@ -95,7 +97,7 @@ slidev-mcp/
 │   ├── backup.sh              # pg_dump + slides tar, 7-day rotation
 │   └── restore.sh             # Restore from backup
 │
-├── tests/                     # pytest (74 tests)
+├── tests/                     # pytest (85 tests)
 │   ├── test_builder.py        # HTTP mock tests for build orchestration
 │   ├── test_tools.py          # Tool input/output, UUID validation, errors
 │   ├── test_e2e.py            # Full MCP round-trip via FastMCP Client
@@ -238,7 +240,7 @@ Slide detail resources (`slides://`) are dynamic `@mcp.resource` handlers that q
 ```bash
 make lint          # ruff check .
 make format-check  # ruff format --check .
-make test          # pytest (74 tests, no live services)
+make test          # pytest (85 tests, no live services)
 make pr-ready      # lint-fix + format + test
 ```
 
@@ -276,11 +278,17 @@ Job 3: deploy
 
 **GitHub Secrets required:** `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `POSTGRES_PASSWORD`, `ACME_EMAIL`, `BACKUP_ENCRYPTION_KEY`.
 
-**GitHub Variables:** `DOMAIN` (default: `slidev-mcp.org`), `DEPLOY_DIR` (default: `/opt/slidev-mcp`).
+**GitHub Variables:** `DOMAIN` (default: `slidev-mcp.org`), `DEPLOY_DIR` (default: `/opt/slidev-mcp`), optional `DASHBOARD_DOMAIN` (default `stats.slidev-mcp.org`) and `DASHBOARD_USER` (default `admin`).
+
+**Optional secrets for the usage dashboard:** `DASHBOARD_PASSWORD` (at least 12 characters) and `DASHBOARD_DB_PASSWORD` (use hex; `$` is interpolated by compose). Without them the dashboard container refuses to start and nothing else is affected. The deploy workflow creates the `dashboard_ro` Postgres role (SELECT on `usage_events` only, read-only transactions) after each deploy. `stats.slidev-mcp.org` needs a DNS A record pointing at the server.
 
 ## Access Model
 
 MCP protocol `2026-07-28` is stateless: `ctx.session_id` changes on every request, so it **must not** be used for ownership or any access control. A slide's UUID (random v4, validated with `validate_uuid`) is the sole capability for update/export/screenshot/lookup. `slides.session_id` is kept (NOT NULL, no migrations) but is diagnostic only. Slide URLs contain the UUID, so sharing a slide URL shares edit access.
+
+## Usage Statistics
+
+`UsageMiddleware` (`src/slidev_mcp/usage.py`) records every tool call and resource read in the `usage_events` table: name, allowlisted theme, MCP client name (sanitized, max 64 chars), latency, response size and an error *code*. It never stores markdown, slide UUIDs (`slides://session/{uuid}` is normalized), IPs or session IDs, and a failed insert never affects a request. There is deliberately no retention window (same as vue-mcp). `dashboard/` charts it (read-only API + Vue page); run it locally with `make docker-dev-up` then `cd dashboard && bun install && bun run seed && bun run dev`. Anything new added to `usage_events` must stay content-free.
 
 ## Security
 
