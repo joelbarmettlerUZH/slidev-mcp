@@ -14,13 +14,13 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
 {
   "context_servers": {
     "slidev-mcp": {
-      "settings": {
-        "url": "https://mcp.slidev-mcp.org/mcp"
-      }
+      "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
 }
 ```
+
+You can also add it through **Settings > AI > MCP Servers > Add Server**; Zed writes the same entry for you.
 
 ## Usage
 

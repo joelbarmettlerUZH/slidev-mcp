@@ -21,20 +21,9 @@ Add to `.vscode/mcp.json` in your project root:
 }
 ```
 
-Or add it to your user settings (`settings.json`):
+To make it available in every workspace, run **MCP: Open User Configuration** from the Command Palette and add the same `servers` entry there. You can also run **MCP: Add Server**, choose **HTTP**, and enter the URL.
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "slidev-mcp": {
-        "type": "http",
-        "url": "https://mcp.slidev-mcp.org/mcp"
-      }
-    }
-  }
-}
-```
+VS Code tries Streamable HTTP first and only falls back to the deprecated SSE transport for servers that don't support it.
 
 ## Usage
 

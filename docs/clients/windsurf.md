@@ -8,7 +8,7 @@ description: How to connect Windsurf to a Slidev MCP server.
 
 ## Setup
 
-Add to your Windsurf MCP configuration file (`~/.codeium/windsurf/mcp_config.json`):
+In the Cascade panel, click the `...` (Actions) menu, then **Open MCP config file** in the MCPs section, and add:
 
 ```json
 {
@@ -20,7 +20,7 @@ Add to your Windsurf MCP configuration file (`~/.codeium/windsurf/mcp_config.jso
 }
 ```
 
-Restart Windsurf to apply.
+Save the file and the server appears in the MCPs list, where you can toggle it on. The file lives at `~/.codeium/windsurf/mcp_config.json` in classic Windsurf installs. Newer versions that follow the Devin layout use `~/.config/devin/mcp_config.json`; opening it from the menu always gets you the right one.
 
 ## Usage
 

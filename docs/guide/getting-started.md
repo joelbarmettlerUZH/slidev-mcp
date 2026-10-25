@@ -11,12 +11,12 @@ Slidev MCP lets your AI assistant create, render, and host presentations. Connec
 ### Claude Code (recommended)
 
 ```bash
-claude mcp add --scope user slidev-mcp --transport streamable-http https://mcp.slidev-mcp.org/mcp
+claude mcp add --scope user slidev-mcp --transport http https://mcp.slidev-mcp.org/mcp
 ```
 
 ### Claude Desktop / claude.ai
 
-Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.anthropic.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in Settings > Connectors.
+Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in **Customize > Connectors**.
 
 ### Cursor
 

@@ -14,7 +14,8 @@ Add to your Opencode configuration (`opencode.json`):
 {
   "mcp": {
     "slidev-mcp": {
-      "type": "http",
+      "type": "remote",
+      "enabled": true,
       "url": "https://mcp.slidev-mcp.org/mcp"
     }
   }
