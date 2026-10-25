@@ -3,7 +3,7 @@
   "name": "io.github.joelbarmettlerUZH/slidev-mcp",
   "title": "Slidev MCP",
   "description": "Generate, render, and host Slidev presentations from markdown",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "websiteUrl": "https://slidev-mcp.org",
   "icons": [
     {

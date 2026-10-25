@@ -252,7 +252,7 @@ async def app_lifespan(server: FastMCP):
 
 mcp = FastMCP(
     name="Slidev MCP",
-    version="0.1.0",
+    version="2.0.0",
     instructions=(
         "This server generates, renders, and hosts Slidev presentations from markdown. "
         "Read the available resources to learn Slidev syntax, themes, and examples, "

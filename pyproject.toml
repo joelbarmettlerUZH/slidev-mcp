@@ -1,6 +1,6 @@
 [project]
 name = "slidev-mcp"
-version = "0.1.0"
+version = "2.0.0"
 description = "MCP server for generating, rendering, and hosting Slidev presentations"
 readme = "README.md"
 authors = [
