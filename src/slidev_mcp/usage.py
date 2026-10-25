@@ -59,6 +59,11 @@ def error_code(exc: BaseException) -> str:
     return type(root).__name__[:40]
 
 
+def _elapsed_ms(start: float) -> int:
+    """Milliseconds since `start`, never below 1 so a stored 0 cannot mean "fast"."""
+    return max(1, int((time.monotonic() - start) * 1000))
+
+
 def response_size(result: Any) -> int | None:
     """Characters of text (plus image payload) in a tool or resource result."""
     total = 0
@@ -138,7 +143,7 @@ class UsageMiddleware(Middleware):
                     "event_type": "tool_call",
                     "name": name,
                     "theme": theme,
-                    "latency_ms": int((time.monotonic() - start) * 1000),
+                    "latency_ms": _elapsed_ms(start),
                     "response_chars": response_size(result) if result is not None else None,
                     "error": error,
                 },
@@ -164,7 +169,7 @@ class UsageMiddleware(Middleware):
                 {
                     "event_type": "resource_read",
                     "name": normalize_uri(uri, self._known_uris(context)),
-                    "latency_ms": int((time.monotonic() - start) * 1000),
+                    "latency_ms": _elapsed_ms(start),
                     "response_chars": size,
                     "error": error,
                 },

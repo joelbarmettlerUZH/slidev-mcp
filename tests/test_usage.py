@@ -148,6 +148,21 @@ class TestMiddleware:
         ]
         assert SLIDE_UUID not in " ".join(e.name for e in events)
 
+    async def test_latency_is_never_zero(
+        self,
+        db_session_factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # A frozen clock makes every call take 0 ms; it must still be recorded as >= 1,
+        # because the dashboard treats 0 as "not measured".
+        monkeypatch.setattr("slidev_mcp.usage.time.monotonic", lambda: 100.0)
+        async with Client(_server(db_session_factory)) as c:
+            await c.call_tool("get_theme", {"name": "seriph"})
+            await c.read_resource("slidev://themes/guide")
+
+        events = await _events(db_session_factory)
+        assert [e.latency_ms for e in events] == [1, 1]
+
     async def test_database_failure_never_breaks_a_tool(
         self, db_session_factory: async_sessionmaker[AsyncSession]
     ) -> None:

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import DailyChart from "./components/DailyChart.vue";
+import ThemeChart from "./components/ThemeChart.vue";
 import type { Overview } from "./types";
 
 const RANGES = [7, 30, 90] as const;
@@ -34,22 +36,11 @@ const nf = new Intl.NumberFormat("en-US");
 const fmt = (n: number | null) => (n === null ? "-" : nf.format(n));
 const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
 
-const maxDaily = computed(() =>
-  Math.max(1, ...(data.value?.daily.map((d) => d.toolCalls + d.resourceReads) ?? [1])),
-);
 const maxTool = computed(() => Math.max(1, ...(data.value?.tools.map((t) => t.count) ?? [1])));
-const maxTheme = computed(() => Math.max(1, ...(data.value?.themes.map((t) => t.count) ?? [1])));
 const maxClient = computed(() => Math.max(1, ...(data.value?.clients.map((c) => c.count) ?? [1])));
 const avgPerDay = computed(() =>
   data.value ? Math.round(data.value.totals.events / data.value.days) : 0,
 );
-
-// Chart geometry (viewBox units)
-const W = 1000;
-const H = 220;
-const barW = computed(() => (data.value ? W / data.value.daily.length : W));
-const y = (v: number) => (v / maxDaily.value) * (H - 24);
-const shortDay = (day: string) => day.slice(5);
 </script>
 
 <template>
@@ -83,9 +74,9 @@ const shortDay = (day: string) => day.slice(5);
         <span class="muted">{{ fmt(data.totals.resourceReads) }} resource reads</span>
       </div>
       <div class="tile">
-        <span class="label">Latency p50 / p95</span>
+        <span class="label">Render latency p50 / p95</span>
         <strong>{{ fmt(data.totals.p50Ms) }} / {{ fmt(data.totals.p95Ms) }} ms</strong>
-        <span class="muted">tool calls and reads with timing</span>
+        <span class="muted">render_slides, measured calls only</span>
       </div>
       <div class="tile">
         <span class="label">Errors</span>
@@ -96,39 +87,7 @@ const shortDay = (day: string) => day.slice(5);
 
     <section class="card">
       <h2>Requests per day</h2>
-      <svg :viewBox="`0 0 ${W} ${H}`" class="chart" role="img" aria-label="Requests per day">
-        <g v-for="(d, i) in data.daily" :key="d.day">
-          <rect
-            :x="i * barW + barW * 0.12"
-            :y="H - 20 - y(d.toolCalls)"
-            :width="barW * 0.76"
-            :height="y(d.toolCalls)"
-            fill="var(--tool)"
-          >
-            <title>{{ d.day }}: {{ d.toolCalls }} tool calls, {{ d.resourceReads }} resource reads</title>
-          </rect>
-          <rect
-            :x="i * barW + barW * 0.12"
-            :y="H - 20 - y(d.toolCalls) - y(d.resourceReads)"
-            :width="barW * 0.76"
-            :height="y(d.resourceReads)"
-            fill="var(--resource)"
-          />
-          <text
-            v-if="i % Math.ceil(data.daily.length / 10) === 0"
-            :x="i * barW + barW / 2"
-            :y="H - 4"
-            text-anchor="middle"
-            class="tick"
-          >
-            {{ shortDay(d.day) }}
-          </text>
-        </g>
-      </svg>
-      <p class="legend">
-        <i style="background: var(--tool)"></i> tool calls
-        <i style="background: var(--resource)"></i> resource reads
-      </p>
+      <DailyChart :daily="data.daily" />
     </section>
 
     <div class="cols">
@@ -156,13 +115,7 @@ const shortDay = (day: string) => day.slice(5);
       <section class="card">
         <h2>Themes rendered</h2>
         <p v-if="!data.themes.length" class="muted">No theme usage recorded.</p>
-        <ul class="bars">
-          <li v-for="t in data.themes" :key="t.theme">
-            <span class="name">{{ t.theme }}</span>
-            <span class="track"><span class="fill" :style="{ width: (t.count / maxTheme) * 100 + '%' }"></span></span>
-            <span class="n">{{ fmt(t.count) }}</span>
-          </li>
-        </ul>
+        <ThemeChart v-else :themes="data.themes" />
       </section>
     </div>
 
@@ -233,11 +186,6 @@ h2 { margin: 0 0 12px; font-size: 14px; color: var(--muted); font-weight: 600; t
 .label { color: var(--muted); font-size: 13px; }
 .card { margin-bottom: 12px; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
-.chart { width: 100%; height: auto; display: block; }
-.tick { fill: var(--muted); font-size: 11px; }
-.legend { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 12px; }
-.legend i:first-child { margin-left: 0; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding-bottom: 6px; }
 td { padding: 6px 0; border-top: 1px solid var(--line); }

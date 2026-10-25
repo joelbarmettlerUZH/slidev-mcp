@@ -29,7 +29,14 @@ export function connect(url: string): SQL {
   return new SQL(url);
 }
 
-/** All figures for the last `days` days. Every statement runs in one READ ONLY transaction. */
+/**
+ * All figures for the last `days` days. Every statement runs in one READ ONLY transaction.
+ *
+ * Latency: the headline figure covers `render_slides` only, because that is the one slow tool (it
+ * builds the deck); the tool and resource reads are in-memory and would pull the median to a
+ * meaningless value. The server never logs a latency below 1 ms, so 0 would mean "not measured"
+ * and is left out of every percentile.
+ */
 export async function overview(sql: SQL, days: number): Promise<Overview> {
   return sql.begin("read only", async (tx) => {
     const [t] = await tx`
@@ -38,8 +45,8 @@ export async function overview(sql: SQL, days: number): Promise<Overview> {
         count(*) FILTER (WHERE event_type = 'tool_call')   AS tool_calls,
         count(*) FILTER (WHERE event_type = 'resource_read') AS resource_reads,
         count(*) FILTER (WHERE error IS NOT NULL)          AS errors,
-        percentile_cont(0.5)  WITHIN GROUP (ORDER BY latency_ms) AS p50,
-        percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95,
+        percentile_cont(0.5)  WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE name = 'render_slides' AND latency_ms > 0) AS p50,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE name = 'render_slides' AND latency_ms > 0) AS p95,
         min(timestamp)                                     AS first_event,
         max(timestamp)                                     AS last_event
       FROM usage_events
@@ -57,8 +64,8 @@ export async function overview(sql: SQL, days: number): Promise<Overview> {
 
     const tools = await tx`
       SELECT name, count(*) AS count,
-             percentile_cont(0.5)  WITHIN GROUP (ORDER BY latency_ms) AS p50,
-             percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95,
+             percentile_cont(0.5)  WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE latency_ms > 0) AS p50,
+             percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE latency_ms > 0) AS p95,
              count(*) FILTER (WHERE error IS NOT NULL) AS errors
       FROM usage_events
       WHERE event_type = 'tool_call' AND timestamp >= now() - make_interval(days => ${days})
