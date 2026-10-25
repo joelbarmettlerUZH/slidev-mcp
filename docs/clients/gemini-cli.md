@@ -8,7 +8,13 @@ description: How to connect Gemini CLI to a Slidev MCP server.
 
 ## Setup
 
-Add to your Gemini CLI settings file (`~/.gemini/settings.json`):
+One command:
+
+```bash
+gemini mcp add --transport http slidev-mcp https://mcp.slidev-mcp.org/mcp
+```
+
+Or add it to your Gemini CLI settings file (`~/.gemini/settings.json`). Use `httpUrl` for Streamable HTTP; the `url` key is for the deprecated SSE transport, which this server does not offer:
 
 ```json
 {

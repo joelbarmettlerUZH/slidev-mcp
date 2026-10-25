@@ -39,14 +39,14 @@ Your slides are hosted and ready to present. Bookmark them, send them to a colle
 ### Claude Code
 
 ```bash
-claude mcp add --scope user slidev-mcp --transport streamable-http https://mcp.slidev-mcp.org/mcp
+claude mcp add --scope user slidev-mcp --transport http https://mcp.slidev-mcp.org/mcp
 ```
 
 That's it. Start a conversation and ask Claude to make a presentation.
 
 ### Claude Desktop / claude.ai
 
-Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.anthropic.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in Settings > Connectors.
+Add `mcp.slidev-mcp.org/mcp` as a [custom connector](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) in **Customize > Connectors**.
 
 ### Cursor
 

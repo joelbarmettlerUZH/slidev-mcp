@@ -11,10 +11,12 @@ description: How to connect Claude Code to a Slidev MCP server.
 Run one command:
 
 ```bash
-claude mcp add --scope user slidev-mcp --transport streamable-http https://mcp.slidev-mcp.org/mcp
+claude mcp add --scope user slidev-mcp --transport http https://mcp.slidev-mcp.org/mcp
 ```
 
 This adds the server to your user-level MCP configuration. It will be available in all Claude Code sessions.
+
+`http` is Claude Code's name for the MCP Streamable HTTP transport. The older `sse` transport is deprecated, and this server does not offer it.
 
 ## Verify
 

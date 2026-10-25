@@ -21,7 +21,7 @@ Self-hosting? Replace with your own server domain.
 | Client | Type | Guide |
 |---|---|---|
 | [Claude Code](/clients/claude-code) | CLI | One command setup |
-| [Claude Desktop](/clients/claude-desktop) | Desktop app | JSON config |
+| [Claude Desktop](/clients/claude-desktop) | Desktop app | Custom connector (UI) |
 | [Cursor](/clients/cursor) | IDE | One-click or JSON config |
 | [Windsurf](/clients/windsurf) | IDE | JSON config |
 | [VS Code (Copilot)](/clients/vscode) | IDE | JSON config |
@@ -29,7 +29,7 @@ Self-hosting? Replace with your own server domain.
 | [Zed](/clients/zed) | IDE | JSON config |
 | [Opencode](/clients/opencode) | CLI | JSON config |
 | [Gemini CLI](/clients/gemini-cli) | CLI | JSON config |
-| [ChatGPT](/clients/chatgpt) | Web / Desktop | App connector |
+| [ChatGPT](/clients/chatgpt) | Web / Desktop | Custom connector (developer mode) |
 
 ## Other Clients
 
@@ -40,3 +40,9 @@ https://mcp.slidev-mcp.org/mcp
 ```
 
 Consult your client's MCP documentation for how to add a streamable HTTP server.
+
+## About Transports
+
+Slidev MCP serves **Streamable HTTP** at `/mcp`. This is the remote transport defined by the current [MCP specification](https://modelcontextprotocol.io/specification/latest/basic/transports) (revision 2026-07-28), which only defines stdio and Streamable HTTP. The older HTTP+SSE transport is deprecated and there is no `/sse` endpoint, so if your client asks you to choose, pick **HTTP** / **Streamable HTTP**, not SSE. Clients that try Streamable HTTP first and fall back to SSE (Claude Code, VS Code) will work without changes.
+
+Configuration key names differ per client (`url`, `serverUrl`, `httpUrl`, `type: "remote"`), so use the exact format from your client's guide.

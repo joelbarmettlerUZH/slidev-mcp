@@ -8,20 +8,22 @@ JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, GoLand, etc.) support MCP serv
 
 ## Setup
 
-1. Open **Settings** > **Tools** > **AI Assistant** > **MCP Servers**
-2. Click **Add** > **As JSON**
-3. Paste:
+1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**
+2. Click **Add** to open the New MCP Server dialog
+3. Select the **HTTP** connection type and paste:
 
 ```json
 {
-  "slidev-mcp": {
-    "type": "http",
-    "url": "https://mcp.slidev-mcp.org/mcp"
+  "mcpServers": {
+    "slidev-mcp": {
+      "url": "https://mcp.slidev-mcp.org/mcp"
+    }
   }
 }
 ```
 
-4. Click **OK** and restart the IDE.
+4. Choose the level (global or current project), then click **OK** and **Apply**
+5. Check that the server shows as connected in the **Status** column
 
 ## Usage
 
