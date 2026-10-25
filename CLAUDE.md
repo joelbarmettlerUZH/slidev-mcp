@@ -112,7 +112,7 @@ Themes are defined in `builder/themes.json` — the single source of truth:
 
 ```json
 {
-  "slidev_cli_version": "0.50.0",
+  "slidev_cli_version": "52.14.1",
   "themes": {
     "neocarbon": {
       "package": "slidev-theme-neocarbon",
