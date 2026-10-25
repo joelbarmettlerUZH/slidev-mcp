@@ -8,17 +8,24 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator
 from slidev_mcp.config import Settings
-from slidev_mcp.errors import (
-    InvalidUuid,
-    UuidForeign,
-    UuidSealed,
-)
+from slidev_mcp.errors import InvalidUuid
 from slidev_mcp.models import Slide, SlideVersion
-from slidev_mcp.sessions import SessionMap
 
 _UUID4_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
+
+MAX_LOOKUP_UUIDS = 50
+
+
+def validate_uuid(uuid: str) -> str:
+    """Return the UUID if it is a well-formed v4, else raise InvalidUuid.
+
+    Must run before a user-supplied UUID reaches any filesystem path.
+    """
+    if not _UUID4_PATTERN.match(uuid):
+        raise InvalidUuid(uuid)
+    return uuid
 
 
 async def render_slides(
@@ -34,41 +41,33 @@ async def render_slides(
     ] = "light",
     *,
     session_id: str,
-    session_map: SessionMap,
     builder: BuildOrchestrator,
     db_session_factory: async_sessionmaker[AsyncSession],
 ) -> dict[str, Any]:
     """Render a Slidev presentation from markdown.
 
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
+
+    The UUID is the only capability needed to update a presentation: there is no
+    per-session ownership, because the stateless MCP protocol has no stable session.
+    `session_id` is recorded for diagnostics only and is never used for access control.
     """
     is_new = uuid is None
     if is_new:
         uuid = str(uuid_mod.uuid4())
 
     # Validate UUID format (path traversal prevention)
-    if not is_new and not _UUID4_PATTERN.match(uuid):
-        raise InvalidUuid(uuid)
-
-    # Check UUID ownership
     if not is_new:
-        if session_map.is_active(uuid):
-            if not session_map.owns(uuid, session_id):
-                raise UuidForeign(uuid)
-        else:
-            # UUID not active — check if it exists in DB (sealed)
-            async with db_session_factory() as session:
-                existing = await session.get(Slide, uuid)
-            if existing is not None:
-                raise UuidSealed(uuid)
+        validate_uuid(uuid)
 
     result = await builder.build(markdown, theme, uuid, color_schema=color_schema)
 
-    # Update DB and session map
+    # Update DB
     async with db_session_factory() as session:
         existing = await session.get(Slide, uuid)
         if existing:
             existing.theme = theme
+            existing.updated_at = func.now()
         else:
             session.add(Slide(uuid=uuid, session_id=session_id, theme=theme))
 
@@ -86,8 +85,6 @@ async def render_slides(
         )
         await session.commit()
 
-    session_map.register(uuid, session_id)
-
     return {
         "url": result.url,
         "uuid": result.uuid,
@@ -97,37 +94,42 @@ async def render_slides(
 
 
 async def list_session_slides(
+    uuids: Annotated[
+        list[str],
+        Field(description="UUIDs of presentations to look up", max_length=MAX_LOOKUP_UUIDS),
+    ],
     *,
-    session_id: str,
     db_session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
 ) -> dict[str, Any]:
-    """List all slides created in the current session."""
+    """Look up presentations by UUID. Unknown UUIDs are omitted from the result."""
+    unique = list(dict.fromkeys(validate_uuid(u) for u in uuids))
+    if not unique:
+        return {"slides": []}
+
     async with db_session_factory() as session:
-        result = await session.execute(select(Slide).where(Slide.session_id == session_id))
-        slides = result.scalars().all()
+        result = await session.execute(select(Slide).where(Slide.uuid.in_(unique)))
+        by_uuid = {s.uuid: s for s in result.scalars().all()}
 
-        # Get version counts in one query
-        version_counts: dict[str, int] = {}
-        if slides:
-            uuids = [s.uuid for s in slides]
-            rows = await session.execute(
-                select(SlideVersion.slide_uuid, func.count())
-                .where(SlideVersion.slide_uuid.in_(uuids))
-                .group_by(SlideVersion.slide_uuid)
-            )
-            version_counts = dict(rows.all())
+        rows = await session.execute(
+            select(SlideVersion.slide_uuid, func.count())
+            .where(SlideVersion.slide_uuid.in_(list(by_uuid)))
+            .group_by(SlideVersion.slide_uuid)
+        )
+        version_counts: dict[str, int] = dict(rows.all())
 
+    host = settings.slides_domain or settings.domain
     return {
         "slides": [
             {
                 "uuid": s.uuid,
-                "url": f"https://{settings.slides_domain or settings.domain}/slides/{s.uuid}/",
+                "url": f"https://{host}/slides/{s.uuid}/",
                 "theme": s.theme,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "updated_at": s.updated_at.isoformat() if s.updated_at else None,
                 "version_count": version_counts.get(s.uuid, 0),
             }
-            for s in slides
+            for u in unique
+            if (s := by_uuid.get(u))
         ]
     }

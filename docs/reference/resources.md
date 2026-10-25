@@ -33,10 +33,9 @@ You don't need to interact with resources directly — your assistant uses them 
 
 | Resource URI | Content |
 |---|---|
-| `slides://session` | All slides created in the current session with their themes, URLs, and latest markdown |
 | `slides://session/{uuid}` | Details for a specific slide: theme, URL, current markdown, and version history |
 
-Session slide resources let the assistant read back previous presentations to reference, modify, or continue iterating on them.
+The slide detail resource lets the assistant read back a previous presentation by UUID to reference, modify, or continue iterating on it.
 
 ### Examples
 

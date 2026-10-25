@@ -10,16 +10,16 @@ from pathlib import Path
 from typing import Annotated
 
 from fastmcp import Context, FastMCP
+from fastmcp.apps import AppConfig, ResourceCSP
 from fastmcp.dependencies import CurrentContext
 from fastmcp.exceptions import ToolError
-from fastmcp.server.apps import AppConfig, ResourceCSP
 from fastmcp.server.lifespan import lifespan
 from fastmcp.server.middleware.logging import StructuredLoggingMiddleware
 from fastmcp.server.middleware.timing import TimingMiddleware
 from fastmcp.tools import ToolResult
 from mcp import types as mcp_types
 from mcp.types import Icon
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from slidev_mcp.builder import BuildOrchestrator
@@ -29,9 +29,9 @@ from slidev_mcp.errors import SlidevMcpError
 from slidev_mcp.gallery import build_gallery_html
 from slidev_mcp.models import Slide, SlideVersion
 from slidev_mcp.resource_registry import load_resources
-from slidev_mcp.sessions import SessionMap
 from slidev_mcp.tools import list_session_slides as _list_session_slides
 from slidev_mcp.tools import render_slides as _render_slides
+from slidev_mcp.tools import validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -154,9 +154,19 @@ class LifespanState:
 
     settings: Settings
     db_session_factory: async_sessionmaker[AsyncSession]
-    session_map: SessionMap
     builder: BuildOrchestrator
     resources: dict[str, str]
+
+
+def _diagnostic_session_id(ctx: Context) -> str:
+    """Best-effort connection identifier for logs. Never use it for access control.
+
+    On the stateless 2026-07-28 protocol this changes on every request.
+    """
+    try:
+        return ctx.session_id or ctx.client_id or "unknown"
+    except RuntimeError:
+        return ctx.client_id or "unknown"
 
 
 # Module-level state for the health endpoint (set during lifespan)
@@ -166,7 +176,6 @@ _state: LifespanState | None = None
 async def _gc_loop(
     interval_hours: int,
     ttl_days: int,
-    session_map: SessionMap,
     db_session_factory: async_sessionmaker[AsyncSession],
     slides_dir: str,
 ) -> None:
@@ -176,13 +185,11 @@ async def _gc_loop(
         try:
             cutoff = datetime.now(UTC) - timedelta(days=ttl_days)
             async with db_session_factory() as session:
-                result = await session.execute(select(Slide).where(Slide.created_at < cutoff))
+                result = await session.execute(select(Slide).where(Slide.updated_at < cutoff))
                 expired = result.scalars().all()
 
                 deleted = 0
                 for slide in expired:
-                    if session_map.is_active(slide.uuid):
-                        continue
                     slide_path = Path(slides_dir) / slide.uuid
                     if slide_path.exists():
                         shutil.rmtree(slide_path)
@@ -206,8 +213,6 @@ async def app_lifespan(server: FastMCP):
     await create_tables(engine)
     db_session_factory = create_session_factory(engine)
 
-    # Session map and build orchestrator
-    session_map = SessionMap()
     builder = BuildOrchestrator(settings)
 
     # Resources
@@ -220,7 +225,6 @@ async def app_lifespan(server: FastMCP):
         _gc_loop(
             settings.gc_interval_hours,
             settings.slide_ttl_days,
-            session_map,
             db_session_factory,
             settings.slides_dir,
         )
@@ -230,7 +234,6 @@ async def app_lifespan(server: FastMCP):
     state = LifespanState(
         settings=settings,
         db_session_factory=db_session_factory,
-        session_map=session_map,
         builder=builder,
         resources=resources,
     )
@@ -559,11 +562,12 @@ class SlideInfo:
     theme: str
     created_at: str | None
     updated_at: str | None
+    version_count: int = 0
 
 
 @dataclass
 class SessionSlides:
-    """All slides created in the current session."""
+    """Presentations matching the requested UUIDs."""
 
     slides: list[SlideInfo] = field(default_factory=list)
 
@@ -617,7 +621,7 @@ async def render_slides(
     Images must be remote URLs or base64-encoded inline. Local file paths are not supported.
     """
     state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
+    session_id = _diagnostic_session_id(ctx)
     markdown_size = len(markdown.encode("utf-8"))
 
     try:
@@ -631,7 +635,6 @@ async def render_slides(
             uuid=uuid,
             color_schema=color_schema,
             session_id=session_id,
-            session_map=state.session_map,
             builder=state.builder,
             db_session_factory=state.db_session_factory,
         )
@@ -682,19 +685,29 @@ async def render_slides(
     icons=[_ICON_SESSION],
     timeout=10,
 )
-async def list_session_slides(ctx: Context = CurrentContext()) -> SessionSlides:
-    """List all slide presentations created in the current MCP session.
+async def list_session_slides(
+    uuids: Annotated[
+        list[str],
+        "UUIDs of the presentations to look up (max 50), e.g. from earlier render_slides results.",
+    ],
+    ctx: Context = CurrentContext(),
+) -> SessionSlides:
+    """Look up presentations by UUID.
 
-    Returns URLs, themes, and timestamps for each presentation you've created.
+    Returns URLs, themes, and timestamps for each requested presentation. The server
+    does not track which presentations belong to a conversation, so pass the UUIDs
+    you got back from render_slides. Unknown UUIDs are omitted.
     """
     state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
 
-    result = await _list_session_slides(
-        session_id=session_id,
-        db_session_factory=state.db_session_factory,
-        settings=state.settings,
-    )
+    try:
+        result = await _list_session_slides(
+            uuids=uuids,
+            db_session_factory=state.db_session_factory,
+            settings=state.settings,
+        )
+    except SlidevMcpError as e:
+        raise ToolError(f"[{e.code}] {e.message}") from None
     return SessionSlides(
         slides=[SlideInfo(**s) for s in result["slides"]],
     )
@@ -856,22 +869,22 @@ async def get_slidev_guide(ctx: Context = CurrentContext()) -> str:
 async def export_slides(
     uuid: Annotated[
         str,
-        "UUID of the presentation to export. Must be from the current session.",
+        "UUID of the presentation to export.",
     ],
     ctx: Context = CurrentContext(),
 ) -> ToolResult:
     """Export a presentation as a downloadable PDF.
 
-    The presentation must have been created in the current session.
     Returns a URL to download the PDF.
     """
     state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
 
-    await ctx.report_progress(0, 3, "Verifying session ownership")
+    await ctx.report_progress(0, 3, "Validating UUID")
 
-    if not state.session_map.owns(uuid, session_id):
-        raise ToolError("[uuid_foreign] UUID does not belong to this session")
+    try:
+        validate_uuid(uuid)
+    except SlidevMcpError as e:
+        raise ToolError(f"[{e.code}] {e.message}") from None
 
     async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
@@ -932,12 +945,13 @@ async def screenshot_slides(
     specific feedback.
     """
     state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
 
-    await ctx.report_progress(0, 3, "Verifying session ownership")
+    await ctx.report_progress(0, 3, "Validating UUID")
 
-    if not state.session_map.owns(uuid, session_id):
-        raise ToolError("[uuid_foreign] UUID does not belong to this session")
+    try:
+        validate_uuid(uuid)
+    except SlidevMcpError as e:
+        raise ToolError(f"[{e.code}] {e.message}") from None
 
     async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
@@ -976,55 +990,20 @@ async def screenshot_slides(
         raise ToolError(f"[{e.code}] {e.message}") from None
 
 
-@mcp.resource("slides://session", tags={"session"}, icons=[_ICON_SESSION])
-async def session_slides_resource(ctx: Context = CurrentContext()) -> str:
-    """All slides created in the current MCP session with themes, URLs, and markdown."""
-    state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
-
-    async with state.db_session_factory() as session:
-        result = await session.execute(select(Slide).where(Slide.session_id == session_id))
-        slides = result.scalars().all()
-
-        entries = []
-        for slide in slides:
-            latest = await session.scalar(
-                select(SlideVersion.markdown)
-                .where(SlideVersion.slide_uuid == slide.uuid)
-                .order_by(SlideVersion.version.desc())
-                .limit(1)
-            )
-            version_count = await session.scalar(
-                select(func.count())
-                .select_from(SlideVersion)
-                .where(SlideVersion.slide_uuid == slide.uuid)
-            )
-            host = state.settings.slides_domain or state.settings.domain
-            entries.append(
-                f"## {slide.uuid}\n\n"
-                f"- **Theme:** {slide.theme}\n"
-                f"- **URL:** https://{host}/slides/{slide.uuid}/\n"
-                f"- **Versions:** {version_count}\n\n"
-                f"```markdown\n{latest or '(no markdown stored)'}\n```"
-            )
-
-    if not entries:
-        return "No slides in this session yet."
-    return "# Session Slides\n\n" + "\n\n---\n\n".join(entries)
-
-
 @mcp.resource("slides://session/{uuid}", tags={"session"}, icons=[_ICON_SESSION])
 async def slide_detail_resource(uuid: str, ctx: Context = CurrentContext()) -> str:
     """Details for a specific slide: theme, markdown, URL, and version history."""
     state: LifespanState = ctx.lifespan_context
-    session_id = ctx.session_id or ctx.client_id or "unknown"
+
+    try:
+        validate_uuid(uuid)
+    except SlidevMcpError as e:
+        return f"[{e.code}] {e.message}"
 
     async with state.db_session_factory() as session:
         slide = await session.get(Slide, uuid)
         if slide is None:
             return f"Slide `{uuid}` not found."
-        if slide.session_id != session_id:
-            return f"Slide `{uuid}` belongs to a different session."
 
         versions_result = await session.execute(
             select(SlideVersion)

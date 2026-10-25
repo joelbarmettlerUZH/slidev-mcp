@@ -54,7 +54,7 @@ class TestServerRegistration:
         async with Client(transport=test_mcp) as client:
             tools = await client.list_tools()
         render_tool = next(t for t in tools if t.name == "render_slides")
-        param_names = set(render_tool.inputSchema.get("properties", {}).keys())
+        param_names = set(render_tool.input_schema.get("properties", {}).keys())
         assert "markdown" in param_names
         assert "theme" in param_names
         assert "uuid" in param_names

@@ -12,16 +12,6 @@ class ThemeNotAllowed(SlidevMcpError):
         super().__init__("theme_not_allowed", f"Theme '{theme}' is not in the allowlist")
 
 
-class UuidSealed(SlidevMcpError):
-    def __init__(self, uuid: str) -> None:
-        super().__init__("uuid_sealed", f"UUID '{uuid}' is sealed and cannot be modified")
-
-
-class UuidForeign(SlidevMcpError):
-    def __init__(self, uuid: str) -> None:
-        super().__init__("uuid_foreign", f"UUID '{uuid}' belongs to a different session")
-
-
 class BuildFailed(SlidevMcpError):
     def __init__(self, stderr: str) -> None:
         super().__init__("build_failed", f"Slidev build failed: {stderr[:500]}")

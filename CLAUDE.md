@@ -44,9 +44,8 @@ MCP Client ──MCP/HTTP──▶ MCP Server (Python/FastMCP)
 slidev-mcp/
 ├── src/slidev_mcp/            # Python MCP server
 │   ├── server.py              # FastMCP app, lifespan, tool + resource registration
-│   ├── tools.py               # render_slides, list_session_slides (business logic)
+│   ├── tools.py               # render_slides, list_session_slides, validate_uuid (business logic)
 │   ├── builder.py             # HTTP client to builder service
-│   ├── sessions.py            # In-memory UUID→session map
 │   ├── models.py              # SQLAlchemy ORM (Slide, SlideVersion tables)
 │   ├── db.py                  # Async engine, session factory
 │   ├── resource_registry.py   # Maps resource URIs → files
@@ -91,11 +90,10 @@ slidev-mcp/
 │   ├── backup.sh              # pg_dump + slides tar, 7-day rotation
 │   └── restore.sh             # Restore from backup
 │
-├── tests/                     # pytest (59 tests)
+├── tests/                     # pytest (74 tests)
 │   ├── test_builder.py        # HTTP mock tests for build orchestration
 │   ├── test_tools.py          # Tool input/output, UUID validation, errors
 │   ├── test_e2e.py            # Full MCP round-trip via FastMCP Client
-│   ├── test_sessions.py       # In-memory session map
 │   ├── test_config.py         # Settings defaults, theme allowlist
 │   ├── test_models.py         # SQLAlchemy model
 │   ├── test_resource_registry.py
@@ -162,7 +160,7 @@ Themes are defined in `builder/themes.json` — the single source of truth:
 - UUID validation: `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`
 
 ### `list_session_slides`
-- No parameters
+- Parameters: `uuids` (list[str], max 50) — looks up presentations by UUID; unknown UUIDs are omitted
 - Returns: `SessionSlides` dataclass (list of `SlideInfo`)
 - Annotations: `readOnlyHint=true`
 
@@ -190,13 +188,12 @@ Non-app clients (CLI, most IDEs) receive the same JSON text and are unaffected.
 | `slidev://themes/installed` | `src/slidev_mcp/resources/installed_themes.md` |
 | `slidev://themes/guide` | `src/slidev_mcp/resources/theme_guide.md` (style/tone selection guide) |
 | `slidev://themes/{name}` | `src/slidev_mcp/resources/themes/{name}.md` (README + example.md merged) |
-| `slides://session` | Dynamic — all slides in the current session (theme, markdown, URL) |
-| `slides://session/{uuid}` | Dynamic — single slide detail with version history |
+| `slides://session/{uuid}` | Dynamic — single slide detail by UUID with version history |
 | `slidev://examples/minimal` | `src/slidev_mcp/resources/examples/minimal.md` |
 | `slidev://examples/full_demo` | `src/slidev_mcp/resources/examples/full_demo.md` |
 
 Per-theme resources are loaded dynamically from the `resources/themes/` directory at startup.
-Session slide resources (`slides://`) are dynamic `@mcp.resource` handlers that query the database.
+Slide detail resources (`slides://`) are dynamic `@mcp.resource` handlers that query the database.
 
 ## Environment Variables
 
@@ -209,7 +206,7 @@ Session slide resources (`slides://`) are dynamic `@mcp.resource` handlers that 
 | `BUILDER_PORT` | `3000` | Builder HTTP server port |
 | `BUILD_TIMEOUT` | `120` | Max seconds per build |
 | `MAX_CONCURRENT_BUILDS` | `3` | Semaphore limit (currently unused — builder handles concurrency) |
-| `SLIDE_TTL_DAYS` | `30` | Days before sealed slides are GC'd |
+| `SLIDE_TTL_DAYS` | `30` | Days since last update before slides are GC'd |
 | `GC_INTERVAL_HOURS` | `6` | GC background task interval |
 | `SERVER_TRANSPORT` | `stdio` | `stdio` or `streamable-http` |
 | `SERVER_HOST` | `0.0.0.0` | Bind host (HTTP mode) |
@@ -234,7 +231,7 @@ Session slide resources (`slides://`) are dynamic `@mcp.resource` handlers that 
 ```bash
 make lint          # ruff check .
 make format-check  # ruff format --check .
-make test          # pytest (59 tests, no live services)
+make test          # pytest (74 tests, no live services)
 make pr-ready      # lint-fix + format + test
 ```
 
@@ -273,6 +270,10 @@ Job 3: deploy
 **GitHub Secrets required:** `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `POSTGRES_PASSWORD`, `ACME_EMAIL`, `BACKUP_ENCRYPTION_KEY`.
 
 **GitHub Variables:** `DOMAIN` (default: `slidev-mcp.org`), `DEPLOY_DIR` (default: `/opt/slidev-mcp`).
+
+## Access Model
+
+MCP protocol `2026-07-28` is stateless: `ctx.session_id` changes on every request, so it **must not** be used for ownership or any access control. A slide's UUID (random v4, validated with `validate_uuid`) is the sole capability for update/export/screenshot/lookup. `slides.session_id` is kept (NOT NULL, no migrations) but is diagnostic only. Slide URLs contain the UUID, so sharing a slide URL shares edit access.
 
 ## Security
 

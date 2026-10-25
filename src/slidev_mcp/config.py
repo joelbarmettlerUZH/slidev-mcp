@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     slide_ttl_days: int = Field(
         default=30,
         ge=1,
-        description="Days before sealed slides are garbage-collected",
+        description="Days since last update before slides are garbage-collected",
     )
     gc_interval_hours: int = Field(
         default=6,

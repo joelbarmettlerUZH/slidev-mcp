@@ -44,7 +44,7 @@ Slidev MCP is configured via environment variables. Set them in your `.env` file
 
 | Variable | Default | Description |
 |---|---|---|
-| `SLIDE_TTL_DAYS` | `30` | Days before sealed slides are garbage-collected |
+| `SLIDE_TTL_DAYS` | `30` | Days since last update before slides are garbage-collected |
 | `GC_INTERVAL_HOURS` | `6` | How often the garbage collector runs |
 
 ### Logging

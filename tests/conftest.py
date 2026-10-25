@@ -2,12 +2,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from slidev_mcp.models import Base, Slide, SlideVersion
-from slidev_mcp.sessions import SessionMap
-
-
-@pytest.fixture
-def session_map() -> SessionMap:
-    return SessionMap()
 
 
 @pytest.fixture
