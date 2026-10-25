@@ -3,7 +3,13 @@ import pytest
 
 from slidev_mcp.builder import MAX_MARKDOWN_SIZE, BuildOrchestrator, BuildResult
 from slidev_mcp.config import Settings
-from slidev_mcp.errors import BuildFailed, BuildTimeout, MarkdownTooLarge, ThemeNotAllowed
+from slidev_mcp.errors import (
+    BuildFailed,
+    BuildTimeout,
+    ConcurrentLimitReached,
+    MarkdownTooLarge,
+    ThemeNotAllowed,
+)
 
 
 @pytest.fixture
@@ -115,6 +121,45 @@ class TestBuild:
 
         with pytest.raises(BuildTimeout):
             await orchestrator.build("# Slides", "default", "timeout-uuid")
+
+    async def test_builder_reports_build_timeout(self, orchestrator: BuildOrchestrator) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                504, json={"error": "build_timeout", "details": "Build exceeded 90s"}
+            )
+        )
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
+
+        with pytest.raises(BuildTimeout):
+            await orchestrator.build("# Slides", "default", "slow-uuid")
+
+    async def test_builder_busy_maps_to_concurrent_limit(
+        self, orchestrator: BuildOrchestrator
+    ) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                503, json={"error": "concurrent_limit", "details": "Builder is busy"}
+            )
+        )
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
+
+        with pytest.raises(ConcurrentLimitReached):
+            await orchestrator.build("# Slides", "default", "busy-uuid")
+
+    async def test_export_timeout_and_busy(self, orchestrator: BuildOrchestrator) -> None:
+        responses = iter(
+            [
+                httpx.Response(504, json={"error": "export_timeout", "details": "too slow"}),
+                httpx.Response(503, json={"error": "concurrent_limit", "details": "busy"}),
+            ]
+        )
+        transport = httpx.MockTransport(lambda req: next(responses))
+        orchestrator._client = httpx.AsyncClient(transport=transport, base_url="http://test")
+
+        with pytest.raises(BuildTimeout):
+            await orchestrator.export("# Slides", "default", "11111111-1111-4111-8111-111111111111")
+        with pytest.raises(ConcurrentLimitReached):
+            await orchestrator.export("# Slides", "default", "11111111-1111-4111-8111-111111111111")
 
     async def test_theme_not_found_from_builder(self, orchestrator: BuildOrchestrator) -> None:
         transport = httpx.MockTransport(

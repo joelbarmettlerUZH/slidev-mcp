@@ -1,6 +1,8 @@
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { config } from "./config";
+import { runCommand, type RunResult } from "./run";
 
 export interface ExportParams {
   markdown: string;
@@ -8,6 +10,7 @@ export interface ExportParams {
   uuid: string;
   format: "pdf" | "png";
   colorSchema: string;
+  signal?: AbortSignal;
 }
 
 export interface ExportResult {
@@ -72,6 +75,25 @@ function patchFrontmatter(markdown: string, theme: string, colorSchema: string):
   return `---\n${fields}\n---\n\n${markdown}`;
 }
 
+function assertCompleted(run: RunResult, what: string): void {
+  if (run.timedOut || run.killed) {
+    throw new ExportError(
+      "export_timeout",
+      `${what} exceeded ${config.exportTimeoutSeconds}s and was stopped`,
+      504,
+    );
+  }
+  if (run.aborted) {
+    throw new ExportError("aborted", "Client disconnected; export stopped", 499);
+  }
+  if (run.exitCode !== 0) {
+    throw new ExportError(
+      "export_failed",
+      `${what} failed (code ${run.exitCode}): ${run.stderrTail.slice(-500)}`,
+    );
+  }
+}
+
 async function prepareWorkDir(
   theme: string,
   markdown: string,
@@ -99,7 +121,7 @@ async function prepareWorkDir(
 }
 
 export async function runExport(params: ExportParams): Promise<ExportResult> {
-  const { markdown, theme, uuid, format, colorSchema } = params;
+  const { markdown, theme, uuid, format, colorSchema, signal } = params;
   const distDir = join("/data/slides", uuid);
   const start = Date.now();
 
@@ -109,25 +131,16 @@ export async function runExport(params: ExportParams): Promise<ExportResult> {
     if (format === "pdf") {
       const pdfPath = join(distDir, "slides-export.pdf");
 
-      const proc = Bun.spawn(
+      const run = await runCommand(
         [
           "bunx", "slidev", "export",
           "--output", pdfPath,
           "--timeout", "60000",
         ],
-        { cwd: workDir, stdout: "pipe", stderr: "pipe" }
+        { cwd: workDir, timeoutSeconds: config.exportTimeoutSeconds, signal },
       );
-
-      const exitCode = await proc.exited;
       const elapsed = (Date.now() - start) / 1000;
-
-      if (exitCode !== 0) {
-        const stderr = await new Response(proc.stderr).text();
-        throw new ExportError(
-          "export_failed",
-          `PDF export failed (code ${exitCode}): ${stderr.slice(-500)}`
-        );
-      }
+      assertCompleted(run, "PDF export");
 
       if (!existsSync(pdfPath)) {
         throw new ExportError("export_failed", "PDF export completed but no file produced");
@@ -143,26 +156,17 @@ export async function runExport(params: ExportParams): Promise<ExportResult> {
       // PNG export — returns base64 images of all slides
       const pngDir = join(distDir, "screenshots");
 
-      const proc = Bun.spawn(
+      const run = await runCommand(
         [
           "bunx", "slidev", "export",
           "--format", "png",
           "--output", pngDir,
           "--timeout", "60000",
         ],
-        { cwd: workDir, stdout: "pipe", stderr: "pipe" }
+        { cwd: workDir, timeoutSeconds: config.exportTimeoutSeconds, signal },
       );
-
-      const exitCode = await proc.exited;
       const elapsed = (Date.now() - start) / 1000;
-
-      if (exitCode !== 0) {
-        const stderr = await new Response(proc.stderr).text();
-        throw new ExportError(
-          "export_failed",
-          `PNG export failed (code ${exitCode}): ${stderr.slice(-500)}`
-        );
-      }
+      assertCompleted(run, "PNG export");
 
       if (!existsSync(pngDir)) {
         throw new ExportError("export_failed", "PNG export completed but no directory produced");

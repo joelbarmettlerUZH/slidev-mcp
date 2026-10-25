@@ -39,7 +39,7 @@ RUN for dir in themes/*/; do \
     done; wait
 
 # Copy build scripts and server
-COPY --chown=1000:1000 build-job.ts export-job.ts server.ts ./
+COPY --chown=1000:1000 build-job.ts export-job.ts server.ts run.ts limiter.ts config.ts ./
 
 # Validate all themes — remove any that fail to build
 RUN bun run scripts/validate-themes.ts --remove-broken

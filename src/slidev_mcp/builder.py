@@ -5,12 +5,19 @@ from dataclasses import dataclass, field
 import httpx
 
 from slidev_mcp.config import ALLOWED_THEMES, Settings
-from slidev_mcp.errors import BuildFailed, BuildTimeout, MarkdownTooLarge, ThemeNotAllowed
+from slidev_mcp.errors import (
+    BuildFailed,
+    BuildTimeout,
+    ConcurrentLimitReached,
+    MarkdownTooLarge,
+    ThemeNotAllowed,
+)
 
 logger = logging.getLogger(__name__)
 
 THEME_NAME_PATTERN = re.compile(r"^[a-z0-9-]+$")
 MAX_MARKDOWN_SIZE = 1_000_000  # 1 MB
+EXPORT_TIMEOUT_SECONDS = 180
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +56,19 @@ class BuildOrchestrator:
         if size > MAX_MARKDOWN_SIZE:
             raise MarkdownTooLarge(size, MAX_MARKDOWN_SIZE)
 
+    def _raise_for_builder_error(
+        self, resp: httpx.Response, default_code: str, timeout_seconds: int
+    ) -> None:
+        """Translate a non-200 builder response into a typed error."""
+        data = resp.json()
+        error_code = data.get("error", default_code)
+        details = data.get("details", "Unknown error")
+        if resp.status_code == 503 or error_code == "concurrent_limit":
+            raise ConcurrentLimitReached()
+        if error_code in ("build_timeout", "export_timeout"):
+            raise BuildTimeout(timeout_seconds)
+        raise BuildFailed(f"[{error_code}] {details}")
+
     async def build(
         self, markdown: str, theme: str, uuid: str, color_schema: str = "light"
     ) -> BuildResult:
@@ -70,10 +90,7 @@ class BuildOrchestrator:
             raise BuildTimeout(self._settings.build_timeout) from None
 
         if resp.status_code != 200:
-            data = resp.json()
-            error_code = data.get("error", "build_failed")
-            details = data.get("details", "Unknown error")
-            raise BuildFailed(f"[{error_code}] {details}")
+            self._raise_for_builder_error(resp, "build_failed", self._settings.build_timeout)
 
         data = resp.json()
         slides_host = self._settings.slides_domain or self._settings.domain
@@ -106,16 +123,13 @@ class BuildOrchestrator:
                     "format": fmt,
                     "color_schema": color_schema,
                 },
-                timeout=httpx.Timeout(180, connect=10),
+                timeout=httpx.Timeout(EXPORT_TIMEOUT_SECONDS, connect=10),
             )
         except httpx.TimeoutException:
-            raise BuildTimeout(180) from None
+            raise BuildTimeout(EXPORT_TIMEOUT_SECONDS) from None
 
         if resp.status_code != 200:
-            data = resp.json()
-            error_code = data.get("error", "export_failed")
-            details = data.get("details", "Unknown error")
-            raise BuildFailed(f"[{error_code}] {details}")
+            self._raise_for_builder_error(resp, "export_failed", EXPORT_TIMEOUT_SECONDS)
 
         data = resp.json()
         elapsed = data.get("export_time_seconds", 0)
