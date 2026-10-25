@@ -8,6 +8,12 @@ on:
       - "*.md"
   workflow_dispatch:
 
+# One production deploy at a time. Later runs queue instead of racing on the
+# server (backup + docker compose) and none is cancelled mid-deploy.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
 
