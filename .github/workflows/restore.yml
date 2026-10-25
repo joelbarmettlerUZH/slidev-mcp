@@ -7,6 +7,11 @@ on:
         description: "Workflow run ID to restore DB backup from (find in Actions tab)"
         required: true
         type: string
+      dry_run:
+        description: "Dry run: restore into a throwaway Postgres on the runner and verify. Does NOT touch the server. Untick to restore production."
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   restore:
@@ -16,6 +21,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup SSH
+        if: ${{ !inputs.dry_run }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
@@ -35,12 +41,35 @@ jobs:
           echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
             --decrypt -o backup/db-backup.sql.gz backup/db-backup.sql.gz.gpg
 
+      - name: Dry run - restore into throwaway Postgres
+        if: ${{ inputs.dry_run }}
+        run: |
+          gzip -t backup/db-backup.sql.gz
+          docker run -d --name pg-restore-test \
+            -e POSTGRES_USER=slidev -e POSTGRES_PASSWORD=restore-test -e POSTGRES_DB=slidev \
+            postgres:17-alpine
+          for i in $(seq 1 30); do
+            docker exec pg-restore-test pg_isready -U slidev -d slidev && break
+            sleep 2
+          done
+          gunzip -c backup/db-backup.sql.gz \
+            | docker exec -i pg-restore-test psql -U slidev -d slidev -v ON_ERROR_STOP=1 -q
+          SLIDES=$(docker exec pg-restore-test psql -U slidev -d slidev -tA -c 'SELECT count(*) FROM slides;')
+          VERSIONS=$(docker exec pg-restore-test psql -U slidev -d slidev -tA -c 'SELECT count(*) FROM slide_versions;')
+          echo "Restored into throwaway Postgres: ${SLIDES} slides, ${VERSIONS} versions"
+          docker exec pg-restore-test psql -U slidev -d slidev -c '\dt'
+          docker rm -f pg-restore-test
+          test "${SLIDES}" -gt 0
+          echo "### Restore dry run OK: ${SLIDES} slides, ${VERSIONS} versions" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload backup to server
+        if: ${{ !inputs.dry_run }}
         run: |
           scp backup/db-backup.sql.gz \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/db-restore.sql.gz"
 
       - name: Run restore on server
+        if: ${{ !inputs.dry_run }}
         env:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
         run: |
@@ -54,6 +83,7 @@ jobs:
           "
 
       - name: Verify restore
+        if: ${{ !inputs.dry_run }}
         env:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/slidev-mcp' }}
         run: |
