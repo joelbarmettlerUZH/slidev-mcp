@@ -94,6 +94,44 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  # Usage dashboard: read-only view of usage_events (counts, latencies, themes, clients; no slide content).
+  # Authenticated with HTTP Basic. Connects as the dashboard_ro role (SELECT on usage_events only), created
+  # by the deploy workflow. Without DASHBOARD_PASSWORD / DASHBOARD_DB_PASSWORD the container refuses to
+  # start and nothing else is affected.
+  dashboard:
+    image: ghcr.io/${GITHUB_REPOSITORY:-joelbarmettleruzh/slidev-mcp}/slidev-mcp-dashboard:${IMAGE_TAG:-latest}
+    build:
+      context: ./dashboard
+    networks: [web, internal]
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3100"
+      DATABASE_URL: postgres://dashboard_ro:${DASHBOARD_DB_PASSWORD:-}@postgres:5432/slidev
+      DASHBOARD_USER: ${DASHBOARD_USER:-admin}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_DOMAIN:-stats.slidev-mcp.org}`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=le"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-rate"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=3100"
+      - "traefik.http.middlewares.dashboard-rate.ratelimit.average=60"
+      - "traefik.http.middlewares.dashboard-rate.ratelimit.burst=20"
+      - "traefik.docker.network=slidev-mcp_web"
+    mem_limit: 256m
+    cpus: 0.25
+    logging: *default-logging
+    restart: unless-stopped
+
   traefik:
     image: traefik:v3.6
     networks: [web]

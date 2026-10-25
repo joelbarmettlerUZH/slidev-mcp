@@ -32,6 +32,7 @@ from slidev_mcp.resource_registry import load_resources
 from slidev_mcp.tools import list_session_slides as _list_session_slides
 from slidev_mcp.tools import render_slides as _render_slides
 from slidev_mcp.tools import validate_uuid
+from slidev_mcp.usage import UsageMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,9 @@ async def app_lifespan(server: FastMCP):
         await engine.dispose()
 
 
+_VIEWER_URI = "ui://slidev-mcp/viewer.html"
+_GALLERY_URI = "ui://slidev-mcp/gallery.html"
+
 mcp = FastMCP(
     name="Slidev MCP",
     version="2.0.0",
@@ -264,6 +268,7 @@ mcp = FastMCP(
     middleware=[
         StructuredLoggingMiddleware(),
         TimingMiddleware(),
+        UsageMiddleware(extra_known_uris=frozenset({_VIEWER_URI, _GALLERY_URI})),
     ],
 )
 
@@ -271,8 +276,6 @@ mcp = FastMCP(
 # MCP App: Slide Viewer
 # ---------------------------------------------------------------------------
 
-_VIEWER_URI = "ui://slidev-mcp/viewer.html"
-_GALLERY_URI = "ui://slidev-mcp/gallery.html"
 
 _VIEWER_HTML = """\
 <!DOCTYPE html>
