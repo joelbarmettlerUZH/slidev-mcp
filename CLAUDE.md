@@ -136,6 +136,7 @@ Themes are defined in `builder/themes.json` — the single source of truth:
 
 - `slidev_cli_version` at root is the default; per-theme `slidev_cli_version` overrides it
 - `extra_dependencies` adds packages the theme needs but doesn't declare
+- The Playwright version is pinned once, in `builder/Dockerfile` (`ARG PLAYWRIGHT_VERSION`). It drives both the Chromium install and each theme project's `playwright-chromium` dependency (read by `init-themes.ts` from the environment); bump it there only
 - At Docker build time: `init-themes.ts` generates per-theme projects, `bun install` runs in parallel, `validate-themes.ts` builds a test slide for each theme and removes failures
 - The ALLOWED_THEMES list in `config.py` must match the themes in `themes.json`
 

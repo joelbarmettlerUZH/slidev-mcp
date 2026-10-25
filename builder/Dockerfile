@@ -1,12 +1,17 @@
 FROM oven/bun:1.4
 
+# Single source for the Playwright version: browser install below and the per-theme
+# `playwright-chromium` dependency (scripts/init-themes.ts) must match.
+ARG PLAYWRIGHT_VERSION=1.64.1
+ENV PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}
+
 # Install Playwright system dependencies as root (Chromium needs system libs)
 USER root
 RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
       fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
-RUN bunx playwright install chromium --with-deps
+RUN bunx playwright@${PLAYWRIGHT_VERSION} install chromium --with-deps
 
 # Create non-root user — avoids expensive chown of node_modules later
 RUN getent group 1000 || groupadd -g 1000 builder; \

@@ -23,6 +23,11 @@ interface ThemesConfig {
 }
 
 async function main() {
+  const playwrightVersion = process.env.PLAYWRIGHT_VERSION;
+  if (!playwrightVersion) {
+    throw new Error("PLAYWRIGHT_VERSION is not set (defined in builder/Dockerfile)");
+  }
+
   const config: ThemesConfig = await Bun.file(join(ROOT, "themes.json")).json();
   const themesDir = join(ROOT, "themes");
 
@@ -43,7 +48,7 @@ async function main() {
         "@slidev/cli": slidevVersion,
         [entry.package]: entry.version,
         "vite-plugin-singlefile": "2.3.2",
-        "playwright-chromium": "1.52.0",
+        "playwright-chromium": playwrightVersion,
         ...(entry.extra_dependencies || {}),
       },
     };
